@@ -1,8 +1,7 @@
-# Energy IQ API Reference
+# INTELL API Reference
 
 Base URL: 
-- Staging: `https://api.staging.energy-iq.hng14.com/api/v1`
-- Production: `https://api.energy-iq.hng14.com/api/v1`
+- Staging: `https://api.intell.ng/api/v1`
 
 All protected endpoints require a Bearer token in the `Authorization` header:
 ```

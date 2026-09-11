@@ -1,8 +1,8 @@
-# Test Execution Report — EnergyIQ MVP
+# Test Execution Report — Intell MVP
 
-**Project**: EnergyIQ  
+**Project**: Intell  
 **Suite**: Full Regression (API Level)  
-**Environment**: Staging (`https://api.staging.energy-iq.hng14.com/api/v1`)  
+**Environment**: Staging (`https://api.intell.ng/api/v1/`)  
 **Date**: June 2, 2026  
 **Executed By**: QA Team  
 **Runner**: Newman CLI v6.x  

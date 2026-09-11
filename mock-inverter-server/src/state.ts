@@ -48,7 +48,7 @@ export interface DeviceState {
 const DEVICES: DeviceState[] = [
   {
     installationId: '100001',
-    name: 'EnergyIQ Test Site A',
+    name: 'Intell Test Site A',
     identifier: 'MOCK-VIC-001',
     victronUserId: 9001,
     batterySoc: 75,
@@ -69,7 +69,7 @@ const DEVICES: DeviceState[] = [
   },
   {
     installationId: '100002',
-    name: 'EnergyIQ Test Site B',
+    name: 'Intell Test Site B',
     identifier: 'MOCK-VIC-002',
     victronUserId: 9002,
     batterySoc: 45,
@@ -91,7 +91,7 @@ const DEVICES: DeviceState[] = [
   {
     // Low SOC device — useful for testing RED health status
     installationId: '100003',
-    name: 'EnergyIQ Test Site C (Low Battery)',
+    name: 'Intell Test Site C (Low Battery)',
     identifier: 'MOCK-VIC-003',
     victronUserId: 9003,
     batterySoc: 18,

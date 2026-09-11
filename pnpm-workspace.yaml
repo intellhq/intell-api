@@ -1,9 +1,11 @@
 allowBuilds:
+  '@firebase/util': set this to true or false
   '@nestjs/core': false
   '@scarf/scarf': false
   bcrypt: false
   esbuild: false
   msgpackr-extract: false
+  protobufjs: set this to true or false
   unrs-resolver: false
 onlyBuiltDependencies:
   - '@nestjs/core'

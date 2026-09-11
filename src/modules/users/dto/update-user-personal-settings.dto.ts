@@ -26,7 +26,7 @@ export class UpdateUserPersonalSettingsDto {
   @MaxLength(150)
   lastName?: string;
 
-  @ApiProperty({ example: 'https://energyiq.com/myprofile.jpg' })
+  @ApiProperty({ example: 'https://intell.com/myprofile.jpg' })
   @IsOptional()
   @IsString()
   @MinLength(1)

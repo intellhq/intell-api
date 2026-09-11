@@ -61,7 +61,7 @@ describe('App (e2e)', () => {
         .expect((res) => {
           const body = res.body as { target: { package_name: string } }[];
           expect(Array.isArray(body)).toBe(true);
-          expect(body[0].target.package_name).toBe('com.hng14.energyiq');
+          expect(body[0].target.package_name).toBe('com.hng14.intell');
         });
     });
 

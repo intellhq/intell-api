@@ -1,8 +1,8 @@
 {
   "info": {
     "_postman_id": "4aa97413-33e7-4bdf-837b-ee6e8680a596",
-    "name": "EnergyIQ Full Regression Suite",
-    "description": "Complete API regression tests for EnergyIQ MVP covering Auth, Users, Inverters, Metrics, Alerts, Contact, Waitlist, and Health modules with full API chaining.",
+    "name": "Intell API Full Regression Suite",
+    "description": "Complete API regression tests for Intell MVP covering Auth, Users, Inverters, Metrics, Alerts, Contact, Waitlist, and Health modules with full API chaining.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
