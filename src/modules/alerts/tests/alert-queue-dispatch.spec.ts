@@ -64,7 +64,7 @@ function makeProcessor() {
     sendAlert: jest.fn(),
   };
   const appCfg = {
-    clientUrl: 'https://app.energyiq.test',
+    clientUrl: 'https://intell.test',
   };
 
   const processor = new AlertDispatchProcessor(

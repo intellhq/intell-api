@@ -20,7 +20,7 @@ export interface AlertForFormatting {
 /**
  * Format an alert into a WhatsApp-friendly message string.
  *
- * Format: {icon} Energy IQ Alert\nType: {type}\n{message}\nDepletion in: {min} min
+ * Format: {icon} Intell Alert\nType: {type}\n{message}\nDepletion in: {min} min
  *
  * @param alert - Alert data to format
  * @returns Formatted message string
@@ -31,7 +31,7 @@ export function formatAlertMessage(alert: AlertForFormatting): string {
     alert.minutesUntilDepletion !== undefined
       ? `\n⏱ Estimated depletion in: ${Math.round(alert.minutesUntilDepletion)} min`
       : '';
-  return `${severityIcon} Energy IQ Alert\nType: ${alert.type}\n${alert.message}${depletionLine}`;
+  return `${severityIcon} Intell Alert\nType: ${alert.type}\n${alert.message}${depletionLine}`;
 }
 
 /**
