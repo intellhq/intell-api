@@ -79,7 +79,7 @@ async function bootstrap() {
       readFileSync(resolve(process.cwd(), 'package.json'), 'utf-8'),
     ) as { version: string };
     const config = new DocumentBuilder()
-      .setTitle('Energy IQ API')
+      .setTitle('Intell API')
       .setDescription(
         'AI-powered energy management platform API for Nigerian SMEs and African businesses',
       )
@@ -101,7 +101,7 @@ async function bootstrap() {
 
   const logger = winstonLogger;
   logger.log({
-    message: 'Energy IQ API is running on http://localhost:' + env.PORT,
+    message: 'Intell API is running on http://localhost:' + env.PORT,
     port: env.PORT,
     host: env.HOST,
     environment: env.NODE_ENV,

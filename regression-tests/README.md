@@ -1,6 +1,6 @@
 # EnergyIQ QA Regression Suite
 
-Full API-level regression automation for the EnergyIQ MVP, covering Milestones 1–3.
+Full API-level regression automation for the Intell MVP, covering Milestones 1–3.
 
 ## 🚀 Quick Start
 

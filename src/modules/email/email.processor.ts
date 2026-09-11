@@ -129,9 +129,9 @@ export class EmailProcessor extends WorkerHost {
 
     const fromAddress = this.appCfg.resendFrom;
     const { error } = await this.resend.emails.send({
-      from: `Energy IQ <${fromAddress}>`,
+      from: `Intell <${fromAddress}>`,
       to,
-      subject: `Welcome to Energy IQ`,
+      subject: `Welcome to Intell`,
       html,
     });
 
@@ -160,7 +160,7 @@ export class EmailProcessor extends WorkerHost {
 
     const fromAddress = this.appCfg.resendFrom;
     const { error } = await this.resend.emails.send({
-      from: `Energy IQ <${fromAddress}>`,
+      from: `Intell <${fromAddress}>`,
       to,
       subject: 'Reset your password',
       html,
@@ -193,7 +193,7 @@ export class EmailProcessor extends WorkerHost {
 
     const fromAddress = this.appCfg.resendFrom;
     const { error } = await this.resend.emails.send({
-      from: `Energy IQ <${fromAddress}>`,
+      from: `Intell <${fromAddress}>`,
       to,
       subject: 'Password Updated Successfully',
       html,
@@ -224,7 +224,7 @@ export class EmailProcessor extends WorkerHost {
 
     const fromAddress = this.appCfg.resendFrom;
     const { error } = await this.resend.emails.send({
-      from: `Energy IQ <${fromAddress}>`,
+      from: `Intell <${fromAddress}>`,
       to,
       subject: 'Verify your email address',
       html,
@@ -253,7 +253,7 @@ export class EmailProcessor extends WorkerHost {
 
     const fromAddress = this.appCfg.resendFrom;
     const { error } = await this.resend.emails.send({
-      from: `Energy IQ<${fromAddress}>`,
+      from: `Intell<${fromAddress}>`,
       to,
       subject: 'Link expired',
       html,
@@ -284,7 +284,7 @@ export class EmailProcessor extends WorkerHost {
     const supportInbox = this.appCfg.supportEmail;
 
     const { error } = await this.resend.emails.send({
-      from: `Energy IQ <${fromAddress}>`,
+      from: `Intell <${fromAddress}>`,
       to: supportInbox,
       replyTo: email,
       subject: `Contact Us: Message from ${firstName} ${lastName}`,
@@ -374,7 +374,7 @@ export class EmailProcessor extends WorkerHost {
         : `Alert: ${alertTitle ?? alertType}`;
 
     const { error } = await this.resend.emails.send({
-      from: `Energy IQ <${fromAddress}>`,
+      from: `Intell <${fromAddress}>`,
       to,
       subject,
       html,
@@ -408,7 +408,7 @@ export class EmailProcessor extends WorkerHost {
 
     const fromAddress = this.appCfg.resendFrom;
     const { error } = await this.resend.emails.send({
-      from: `Energy IQ <${fromAddress}>`,
+      from: `Intell <${fromAddress}>`,
       to,
       subject: `You have joined the waitlist`,
       html,
@@ -460,9 +460,9 @@ export class EmailProcessor extends WorkerHost {
     };
 
     const { error } = await this.resend.emails.send({
-      from: `Energy IQ <${fromAddress}>`,
+      from: `Intell <${fromAddress}>`,
       to,
-      subject: `Energy IQ ${reportType.toString()} Report`,
+      subject: `Intell ${reportType.toString()} Report`,
       html,
       attachments: [reportAttachment],
     });
@@ -497,9 +497,9 @@ export class EmailProcessor extends WorkerHost {
 
     const fromAddress = this.appCfg.resendFrom;
     const { error } = await this.resend.emails.send({
-      from: `Energy IQ <${fromAddress}>`,
+      from: `Intell <${fromAddress}>`,
       to,
-      subject: `${inviterName} invited you to join ${inverterName} on EnergyIQ`,
+      subject: `${inviterName} invited you to join ${inverterName} on Intell`,
       html,
     });
 
@@ -539,9 +539,9 @@ export class EmailProcessor extends WorkerHost {
 
     const fromAddress = this.appCfg.resendFrom;
     const { error } = await this.resend.emails.send({
-      from: `Energy IQ <${fromAddress}>`,
+      from: `Intell <${fromAddress}>`,
       to,
-      subject: `${inviterName} added you to ${inverterName} on EnergyIQ`,
+      subject: `${inviterName} added you to ${inverterName} on Intell`,
       html,
     });
 
@@ -583,9 +583,9 @@ export class EmailProcessor extends WorkerHost {
 
     const fromAddress = this.appCfg.resendFrom;
     const { error } = await this.resend.emails.send({
-      from: `Energy IQ <${fromAddress}>`,
+      from: `Intell <${fromAddress}>`,
       to,
-      subject: `You now have access to ${inverterName} on EnergyIQ`,
+      subject: `You now have access to ${inverterName} on Intell`,
       html,
     });
 

@@ -57,9 +57,9 @@ tick();
 app.listen(PORT, () => {
   console.log(`\n[mock-inverter-server] Running on http://localhost:${PORT}`);
   console.log('[mock-inverter-server] Simulating 3 Victron devices:');
-  console.log('  Site 100001 — EnergyIQ Test Site A  (healthy, 5kW panels)');
-  console.log('  Site 100002 — EnergyIQ Test Site B  (moderate, 3kW panels)');
-  console.log('  Site 100003 — EnergyIQ Test Site C  (low battery, RED health)');
+  console.log('  Site 100001 — Intell Test Site A  (healthy, 5kW panels)');
+  console.log('  Site 100002 — Intell Test Site B  (moderate, 3kW panels)');
+  console.log('  Site 100003 — Intell Test Site C  (low battery, RED health)');
   console.log('\nManual override endpoints (no auth required):');
   console.log('  POST /charge/:id        — force charging (body: { durationMinutes? })');
   console.log('  POST /discharge/:id     — force discharging (body: { durationMinutes? })');

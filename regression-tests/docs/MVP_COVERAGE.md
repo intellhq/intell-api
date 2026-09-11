@@ -1,7 +1,7 @@
-# MVP Coverage Confirmation — EnergyIQ
+# MVP Coverage Confirmation — Intell
 
 **Date**: June 2, 2026  
-**Team**: EnergyIQ QA  
+**Team**: Intell QA  
 
 ---
 
