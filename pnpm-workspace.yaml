@@ -1,11 +1,12 @@
 allowBuilds:
-  '@firebase/util': set this to true or false
+  '@firebase/util': true
   '@nestjs/core': false
+  '@parcel/watcher': true
   '@scarf/scarf': false
   bcrypt: false
   esbuild: false
   msgpackr-extract: false
-  protobufjs: set this to true or false
+  protobufjs: true
   unrs-resolver: false
 onlyBuiltDependencies:
   - '@nestjs/core'
@@ -16,3 +17,19 @@ onlyBuiltDependencies:
 packages:
   - mock-inverter-server
   - regression-tests
+overrides:
+  typeorm: 0.3.31
+  ws: 8.21.0
+  axios: 1.18.0
+  follow-redirects: 1.16.0
+  uuid: 11.1.1
+  form-data: 4.0.6
+  js-yaml: 4.3.2
+  multer: 2.3.0
+  flatted: 3.4.2
+  handlebars: 4.7.9
+  lodash: 4.18.0
+  node-forge: 1.4.0
+  qs: 6.16.0
+  underscore: 1.13.8
+  jose: 4.15.5
