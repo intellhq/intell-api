@@ -28,8 +28,18 @@ export class SuperAdminService {
   async getDashboardSummary() {
     const userCounts = await this.superAdminAction.getUserCountSummary();
 
-    const { total: totalFeedback, open: openFeedback, inProgress: inProgressFeedback, resolved: resolvedFeedback } = await this.feedbackService.getSummary();
-    const { total: totalLeads, new: newLeads, contacted: contactedLeads, qualified: qualifiedLeads } = await this.onboardingLeadsService.getSummary();
+    const {
+      total: totalFeedback,
+      open: openFeedback,
+      inProgress: inProgressFeedback,
+      resolved: resolvedFeedback,
+    } = await this.feedbackService.getSummary();
+    const {
+      total: totalLeads,
+      new: newLeads,
+      contacted: contactedLeads,
+      qualified: qualifiedLeads,
+    } = await this.onboardingLeadsService.getSummary();
 
     return {
       users: {

@@ -35,7 +35,10 @@ import { AdminStatus } from '../../common/enums/admin-status.enum';
 import { UserRole } from '../../common/enums/user-role';
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { QueryAdminUsersDto } from './dto/query-admin-users.dto';
-import { QuerySuperAdminUsersDto, UserStatusFilter } from './dto/query-super-admin-users.dto';
+import {
+  QuerySuperAdminUsersDto,
+  UserStatusFilter,
+} from './dto/query-super-admin-users.dto';
 import { FindOptionsWhere, ILike } from 'typeorm';
 
 const BCRYPT_ROUNDS = 10;
@@ -563,7 +566,9 @@ export class UsersService {
     const base: Where = {
       ...(query.status === UserStatusFilter.ACTIVE && { isActive: true }),
       ...(query.status === UserStatusFilter.INACTIVE && { isActive: false }),
-      ...(query.status === UserStatusFilter.PENDING && { emailVerified: false }),
+      ...(query.status === UserStatusFilter.PENDING && {
+        emailVerified: false,
+      }),
       // plan: requires subscriptions table — not yet implemented
       // state: lives on user_settings (joined relation), not directly filterable
       // via FindOptionsWhere on users — both accepted but not yet applied
@@ -622,7 +627,7 @@ export class UsersService {
     const { ILike, In } = await import('typeorm');
     type Where = import('typeorm').FindOptionsWhere<User>;
     const base: Where = {
-      role: query.role ?? (In([UserRole.ADMIN, UserRole.SUPER_ADMIN]) as unknown as UserRole),
+      role: query.role ?? In([UserRole.ADMIN, UserRole.SUPER_ADMIN]),
       ...(query.status && { adminStatus: query.status }),
     };
 
