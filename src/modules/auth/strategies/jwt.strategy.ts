@@ -6,10 +6,12 @@ import { jwtConfig } from '../../../config/jwt.config';
 import { RedisService } from '../../../common/redis/redis.service';
 import { SYS_MSG } from '../../../common/constants/sys-msg';
 import { UsersService } from '../../users/users.service';
+import { UserRole } from '../../../common/enums';
 
 export interface JwtPayload {
   sub: string;
   email: string;
+  role: UserRole;
   sessionId: string;
   jti: string;
 }
@@ -50,6 +52,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     return {
       sub: payload.sub,
       email: payload.email,
+      role: payload.role ?? UserRole.USER,
       sessionId: payload.sessionId,
       jti: payload.jti,
     };
