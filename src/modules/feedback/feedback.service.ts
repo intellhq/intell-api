@@ -99,26 +99,11 @@ export class FeedbackService {
 
     if (query.search) {
       const term = query.search;
-      // Fan out across searchable text fields. For the category branch we keep
-      // base.category (the explicit filter) AND additionally match the search
-      // term — so we build that predicate without spreading the base category
-      // and instead combine both constraints explicitly.
-      const baseWithoutCategory = (({ category: _c, ...rest }) => rest)(
-        base,
-      ) as FindOptionsWhere<Feedback>;
 
       where.push(
         { ...base, name: ILike(`%${term}%`) },
         { ...base, email: ILike(`%${term}%`) },
-        // category branch: must match both the explicit category filter (if set)
-        // AND the search term — achieved by combining category ILike patterns.
-        {
-          ...baseWithoutCategory,
-          category: query.category
-            ? ILike(`%${query.category}%`)
-            : ILike(`%${term}%`),
-          ...(query.category && { name: ILike(`%${term}%`) }),
-        },
+        { ...base, category: ILike(`%${term}%`) },
       );
     } else {
       where.push(base);
