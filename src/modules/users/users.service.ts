@@ -31,6 +31,12 @@ import { ProfileImageModelAction } from './actions/profile-img.action';
 import { Session } from './entities/sessions.entity';
 import { SessionModelAction } from './actions/sessions.action';
 import { CreateSessionDto } from '../auth/dto/create-session.dto';
+import { AdminStatus } from '../../common/enums/admin-status.enum';
+import { UserRole } from '../../common/enums/user-role';
+import { CreateAdminDto } from './dto/create-admin.dto';
+import { QueryAdminUsersDto } from './dto/query-admin-users.dto';
+import { QuerySuperAdminUsersDto, UserStatusFilter } from './dto/query-super-admin-users.dto';
+import { FindOptionsWhere, ILike } from 'typeorm';
 
 const BCRYPT_ROUNDS = 10;
 const SESSION_ABSOLUTE_MAX_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -547,5 +553,135 @@ export class UsersService {
 
   async deleteFile(path: string) {
     return await fs.unlink(path);
+  }
+
+  // ── Super-admin: users ───────────────────────────────────────────────────────
+
+  async adminListUsers(query: QuerySuperAdminUsersDto) {
+    type Where = FindOptionsWhere<User>;
+
+    const base: Where = {
+      ...(query.status === UserStatusFilter.ACTIVE && { isActive: true }),
+      ...(query.status === UserStatusFilter.INACTIVE && { isActive: false }),
+      ...(query.status === UserStatusFilter.PENDING && { emailVerified: false }),
+      role: UserRole.USER,
+    };
+
+    const where: Where[] = [];
+
+    if (query.search) {
+      const t = query.search;
+      where.push(
+        { ...base, firstName: ILike(`%${t}%`) },
+        { ...base, lastName: ILike(`%${t}%`) },
+        { ...base, email: ILike(`%${t}%`) },
+      );
+    } else {
+      where.push(base);
+    }
+
+    return this.userModelAction.list({
+      filterRecordOptions: where,
+      relations: { settings: true },
+      paginationPayload: {
+        page: query.page ?? 1,
+        limit: query.limit ?? 20,
+      },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async adminGetUser(id: string): Promise<User> {
+    const user = await this.userModelAction.get({
+      identifierOptions: { id },
+    });
+    if (!user) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    return user;
+  }
+
+  async adminToggleUserStatus(id: string, isActive: boolean): Promise<User> {
+    await this.findOne(id);
+    const updated = await this.userModelAction.update({
+      ...noTransaction(),
+      identifierOptions: { id },
+      updatePayload: { isActive },
+    });
+    if (!updated) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    return updated;
+  }
+
+  // ── Super-admin: admins ──────────────────────────────────────────────────────
+
+  async adminListAdmins(query: QueryAdminUsersDto) {
+    const { ILike, In } = await import('typeorm');
+    type Where = import('typeorm').FindOptionsWhere<User>;
+    const base: Where = {
+      role: query.role ?? (In([UserRole.ADMIN, UserRole.SUPER_ADMIN]) as unknown as UserRole),
+      ...(query.status && { adminStatus: query.status }),
+    };
+
+    const where: Where[] = [];
+
+    if (query.search) {
+      const t = query.search;
+      where.push(
+        { ...base, firstName: ILike(`%${t}%`) },
+        { ...base, lastName: ILike(`%${t}%`) },
+        { ...base, email: ILike(`%${t}%`) },
+      );
+    } else {
+      where.push(base);
+    }
+
+    return this.userModelAction.list({
+      filterRecordOptions: where,
+      paginationPayload: {
+        page: query.page ?? 1,
+        limit: query.limit ?? 20,
+      },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async adminCreateAdmin(dto: CreateAdminDto): Promise<User> {
+    const existing = await this.userModelAction.findByEmail(dto.email);
+    if (existing) throw new ConflictException(SYS_MSG.CONFLICT);
+
+    return this.userModelAction.create({
+      ...noTransaction(),
+      createPayload: {
+        email: dto.email,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        role: dto.role,
+        adminStatus: AdminStatus.INVITED,
+        isActive: false,
+        emailVerified: false,
+        onboardingStep: 1,
+        onboardingComplete: false,
+      },
+    });
+  }
+
+  async adminUpdateAdminRole(id: string, role: UserRole): Promise<User> {
+    await this.findOne(id);
+    const updated = await this.userModelAction.update({
+      ...noTransaction(),
+      identifierOptions: { id },
+      updatePayload: { role },
+    });
+    if (!updated) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    return updated;
+  }
+
+  async adminUpdateAdminStatus(id: string, status: AdminStatus): Promise<User> {
+    await this.findOne(id);
+    const updated = await this.userModelAction.update({
+      ...noTransaction(),
+      identifierOptions: { id },
+      updatePayload: { adminStatus: status },
+    });
+    if (!updated) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    return updated;
   }
 }
