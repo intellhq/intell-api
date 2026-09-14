@@ -10,7 +10,10 @@ import { UpdateOnboardingLeadStatusDto } from '../onboarding-leads/dto/update-on
 import { QueryFeedbackDto } from '../feedback/dto/query-feedback.dto';
 import { UpdateFeedbackDto } from '../feedback/dto/update-feedback.dto';
 import { QuerySuperAdminUsersDto } from '../users/dto/query-super-admin-users.dto';
-import { ToggleUserStatusDto } from '../users/dto/toggle-user-status.dto';
+import {
+  ToggleUserStatusDto,
+  UserActiveStatus,
+} from '../users/dto/toggle-user-status.dto';
 import { QueryAdminUsersDto } from '../users/dto/query-admin-users.dto';
 import { CreateAdminDto } from '../users/dto/create-admin.dto';
 import { UpdateAdminRoleDto } from '../users/dto/update-admin-role.dto';
@@ -90,7 +93,7 @@ export class SuperAdminService {
   }
 
   toggleUserStatus(id: string, dto: ToggleUserStatusDto) {
-    const isActive = dto.status === 'active';
+    const isActive = dto.status === UserActiveStatus.ACTIVE;
     return this.usersService.adminToggleUserStatus(id, isActive);
   }
 
