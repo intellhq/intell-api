@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { SuperAdminAction } from './actions/super-admin.action';
 import { PaginationDto } from '../../common/dto/pagination.do';
+import { UserRole } from '../../common/enums';
 import { FeedbackService } from '../feedback/feedback.service';
 import { OnboardingLeadsService } from '../onboarding-leads/onboarding-leads.service';
 import { UsersService } from '../users/users.service';
@@ -62,6 +63,7 @@ export class SuperAdminService {
     const page = pagination.page ?? 1;
 
     return this.superAdminAction.list({
+      filterRecordOptions: { role: UserRole.USER },
       paginationPayload: { page, limit },
       order: { createdAt: 'DESC' },
     });

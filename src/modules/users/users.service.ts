@@ -564,6 +564,9 @@ export class UsersService {
       ...(query.status === UserStatusFilter.ACTIVE && { isActive: true }),
       ...(query.status === UserStatusFilter.INACTIVE && { isActive: false }),
       ...(query.status === UserStatusFilter.PENDING && { emailVerified: false }),
+      // plan: requires subscriptions table — not yet implemented
+      // state: lives on user_settings (joined relation), not directly filterable
+      // via FindOptionsWhere on users — both accepted but not yet applied
       role: UserRole.USER,
     };
 
@@ -593,14 +596,17 @@ export class UsersService {
 
   async adminGetUser(id: string): Promise<User> {
     const user = await this.userModelAction.get({
-      identifierOptions: { id },
+      identifierOptions: { id, role: UserRole.USER },
     });
     if (!user) throw new NotFoundException(SYS_MSG.NOT_FOUND);
     return user;
   }
 
   async adminToggleUserStatus(id: string, isActive: boolean): Promise<User> {
-    await this.findOne(id);
+    const user = await this.userModelAction.get({
+      identifierOptions: { id, role: UserRole.USER },
+    });
+    if (!user) throw new NotFoundException(SYS_MSG.NOT_FOUND);
     const updated = await this.userModelAction.update({
       ...noTransaction(),
       identifierOptions: { id },

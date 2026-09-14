@@ -1,8 +1,10 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsIn, IsOptional, IsString } from 'class-validator';
 import { PaginationDto } from '../../../common/dto/pagination.do';
 import { UserRole } from '../../../common/enums';
 import { AdminStatus } from '../../../common/enums/admin-status.enum';
+
+const ADMIN_ROLES = [UserRole.ADMIN, UserRole.SUPER_ADMIN] as const;
 
 export class QueryAdminUsersDto extends PaginationDto {
   @ApiPropertyOptional()
@@ -10,9 +12,9 @@ export class QueryAdminUsersDto extends PaginationDto {
   @IsString()
   search?: string;
 
-  @ApiPropertyOptional({ enum: [UserRole.ADMIN, UserRole.SUPER_ADMIN] })
+  @ApiPropertyOptional({ enum: ADMIN_ROLES })
   @IsOptional()
-  @IsEnum(UserRole)
+  @IsIn(ADMIN_ROLES)
   role?: UserRole.ADMIN | UserRole.SUPER_ADMIN;
 
   @ApiPropertyOptional({ enum: AdminStatus })
