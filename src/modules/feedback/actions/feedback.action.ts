@@ -6,9 +6,7 @@ import { Feedback } from '../entities/feedback.entity';
 
 @Injectable()
 export class FeedbackModelAction extends AbstractModelAction<Feedback> {
-  constructor(
-    @InjectRepository(Feedback) repository: Repository<Feedback>,
-  ) {
+  constructor(@InjectRepository(Feedback) repository: Repository<Feedback>) {
     super(repository, Feedback);
   }
 }

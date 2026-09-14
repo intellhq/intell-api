@@ -38,7 +38,7 @@ export class OnboardingLeadsController {
   @Get('summary')
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   @UseGuards(RolesGuard)
-  @ApiOperation({ summary: 'Get lead status counts (super-admin)' })
+  @ApiOperation({ summary: 'Get lead status counts (admin)' })
   getSummary() {
     return this.onboardingLeadsService.getSummary();
   }

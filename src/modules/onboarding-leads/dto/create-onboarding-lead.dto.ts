@@ -4,6 +4,7 @@ import {
   IsIn,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -31,12 +32,14 @@ export class CreateOnboardingLeadDto {
   @IsString()
   @MinLength(1)
   @MaxLength(255)
+  @Matches(/\S/, { message: 'firstName must not be blank' })
   firstName: string;
 
   @ApiProperty({ example: 'Adeyemi' })
   @IsString()
   @MinLength(1)
   @MaxLength(255)
+  @Matches(/\S/, { message: 'lastName must not be blank' })
   lastName: string;
 
   @ApiProperty({ example: 'blessing@example.com' })
@@ -48,18 +51,21 @@ export class CreateOnboardingLeadDto {
   @IsString()
   @MinLength(1)
   @MaxLength(30)
+  @Matches(/\S/, { message: 'phoneNumber must not be blank' })
   phoneNumber: string;
 
   @ApiProperty({ example: 'Lagos' })
   @IsString()
   @MinLength(1)
   @MaxLength(100)
+  @Matches(/\S/, { message: 'state must not be blank' })
   state: string;
 
   @ApiProperty({ example: 'Deye hybrid inverter' })
   @IsString()
   @MinLength(1)
   @MaxLength(255)
+  @Matches(/\S/, { message: 'inverterType must not be blank' })
   inverterType: string;
 
   @ApiProperty({ example: 'home', enum: VALID_INTERESTS })
@@ -70,7 +76,9 @@ export class CreateOnboardingLeadDto {
   @IsIn(VALID_SOURCES)
   source: string;
 
-  @ApiPropertyOptional({ example: 'I want to track battery drain and savings.' })
+  @ApiPropertyOptional({
+    example: 'I want to track battery drain and savings.',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(1000)

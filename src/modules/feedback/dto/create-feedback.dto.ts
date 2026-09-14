@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsString, MaxLength, MinLength } from 'class-validator';
 import { FeedbackPriority } from '../../../common/enums/feedback-priority.enum';
 
@@ -19,6 +19,6 @@ export class CreateFeedbackDto {
   @MaxLength(5000)
   message: string;
 
-  @ApiPropertyOptional()
+  // @ApiPropertyOptional()
   // reserved for anonymous/future use — backend infers from JWT when authenticated
 }

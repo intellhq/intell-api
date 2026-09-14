@@ -1,5 +1,15 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { FindOptionsWhere, ILike, MoreThanOrEqual, LessThanOrEqual, Between } from 'typeorm';
+import {
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import {
+  FindOptionsWhere,
+  ILike,
+  MoreThanOrEqual,
+  LessThanOrEqual,
+  Between,
+} from 'typeorm';
 import { FeedbackModelAction } from './actions/feedback.action';
 import { CreateFeedbackDto } from './dto/create-feedback.dto';
 import { QueryFeedbackDto } from './dto/query-feedback.dto';
@@ -9,24 +19,29 @@ import { FeedbackStatus } from '../../common/enums/feedback-status.enum';
 import { SYS_MSG } from '../../common/constants/sys-msg';
 import { noTransaction } from '../../common/constants/transaction-options';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class FeedbackService {
-  constructor(private readonly feedbackAction: FeedbackModelAction) {}
+  constructor(
+    private readonly feedbackAction: FeedbackModelAction,
+    private readonly usersService: UsersService,
+  ) {}
 
   async create(
     dto: CreateFeedbackDto,
     currentUser: AuthenticatedUser,
-    userName: { firstName: string; lastName: string } | null,
+    // userName: { firstName: string; lastName: string } | null,
   ): Promise<Feedback> {
+    const user = await this.usersService.findByEmail(currentUser.email);
+    if (!user) throw new UnauthorizedException(SYS_MSG.UNAUTHORIZED);
+    const { firstName, lastName } = user;
     return this.feedbackAction.create({
       ...noTransaction(),
       createPayload: {
         userId: currentUser.sub,
         email: currentUser.email,
-        name: userName
-          ? `${userName.firstName} ${userName.lastName}`
-          : undefined,
+        name: `${firstName} ${lastName}`,
         category: dto.category,
         priority: dto.priority,
         message: dto.message,
@@ -40,7 +55,10 @@ export class FeedbackService {
       .createQueryBuilder('f')
       .select('COUNT(*)', 'total')
       .addSelect("COUNT(*) FILTER (WHERE f.status = 'open')", 'open')
-      .addSelect("COUNT(*) FILTER (WHERE f.status = 'in_progress')", 'inProgress')
+      .addSelect(
+        "COUNT(*) FILTER (WHERE f.status = 'in_progress')",
+        'inProgress',
+      )
       .addSelect("COUNT(*) FILTER (WHERE f.status = 'resolved')", 'resolved')
       .addSelect("COUNT(*) FILTER (WHERE f.priority = 'high')", 'highPriority')
       .where('f.deleted_at IS NULL')
@@ -81,10 +99,26 @@ export class FeedbackService {
 
     if (query.search) {
       const term = query.search;
+      // Fan out across searchable text fields. For the category branch we keep
+      // base.category (the explicit filter) AND additionally match the search
+      // term — so we build that predicate without spreading the base category
+      // and instead combine both constraints explicitly.
+      const baseWithoutCategory = (({ category: _c, ...rest }) => rest)(
+        base,
+      ) as FindOptionsWhere<Feedback>;
+
       where.push(
         { ...base, name: ILike(`%${term}%`) },
         { ...base, email: ILike(`%${term}%`) },
-        { ...base, category: ILike(`%${term}%`) },
+        // category branch: must match both the explicit category filter (if set)
+        // AND the search term — achieved by combining category ILike patterns.
+        {
+          ...baseWithoutCategory,
+          category: query.category
+            ? ILike(`%${query.category}%`)
+            : ILike(`%${term}%`),
+          ...(query.category && { name: ILike(`%${term}%`) }),
+        },
       );
     } else {
       where.push(base);
@@ -108,13 +142,21 @@ export class FeedbackService {
     return feedback;
   }
 
-  async update(id: string, dto: UpdateFeedbackDto): Promise<Feedback> {
+  async update(
+    id: string,
+    dto: UpdateFeedbackDto,
+    adminId: string,
+  ): Promise<Feedback> {
     const feedback = await this.findOne(id);
 
-    const resolvedAt =
-      dto.status === FeedbackStatus.RESOLVED && feedback.status !== FeedbackStatus.RESOLVED
-        ? new Date()
-        : undefined;
+    const transitioningToResolved =
+      dto.status === FeedbackStatus.RESOLVED &&
+      feedback.status !== FeedbackStatus.RESOLVED;
+
+    const transitioningFromResolved =
+      dto.status !== undefined &&
+      dto.status !== FeedbackStatus.RESOLVED &&
+      feedback.status === FeedbackStatus.RESOLVED;
 
     const updated = await this.feedbackAction.update({
       ...noTransaction(),
@@ -123,7 +165,14 @@ export class FeedbackService {
         ...(dto.status && { status: dto.status }),
         ...(dto.priority && { priority: dto.priority }),
         ...(dto.adminNote !== undefined && { adminNote: dto.adminNote }),
-        ...(resolvedAt && { resolvedAt }),
+        ...(transitioningToResolved && {
+          resolvedAt: new Date(),
+          resolvedByAdminId: adminId,
+        }),
+        ...(transitioningFromResolved && {
+          resolvedAt: undefined,
+          resolvedByAdminId: undefined,
+        }),
       },
     });
     if (!updated) throw new NotFoundException(SYS_MSG.NOT_FOUND);
