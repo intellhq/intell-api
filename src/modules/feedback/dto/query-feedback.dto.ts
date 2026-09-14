@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsDateString, IsEnum, IsOptional, IsString } from 'class-validator';
 import { PaginationDto } from '../../../common/dto/pagination.do';
 import { FeedbackStatus } from '../../../common/enums/feedback-status.enum';
 import { FeedbackPriority } from '../../../common/enums/feedback-priority.enum';
@@ -27,11 +27,11 @@ export class QueryFeedbackDto extends PaginationDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsDateString()
   startDate?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsDateString()
   endDate?: string;
 }

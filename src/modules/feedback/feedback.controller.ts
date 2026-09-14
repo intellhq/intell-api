@@ -14,7 +14,10 @@ import { FeedbackService } from './feedback.service';
 import { CreateFeedbackDto } from './dto/create-feedback.dto';
 import { QueryFeedbackDto } from './dto/query-feedback.dto';
 import { UpdateFeedbackDto } from './dto/update-feedback.dto';
-import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  type AuthenticatedUser,
+} from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/user-roles.decorator';
 import { RolesGuard } from '../../common/guards/user-role.guard';
 import { UseGuards } from '@nestjs/common';
@@ -34,7 +37,7 @@ export class FeedbackController {
     @CurrentUser() currentUser: AuthenticatedUser,
   ) {
     // name is resolved inside the service via the user record when needed
-    return this.feedbackService.create(dto, currentUser, null);
+    return this.feedbackService.create(dto, currentUser);
   }
 
   @Get('summary')
@@ -64,11 +67,14 @@ export class FeedbackController {
   @Patch(':id')
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   @UseGuards(RolesGuard)
-  @ApiOperation({ summary: 'Update feedback status / priority / note (super-admin)' })
+  @ApiOperation({
+    summary: 'Update feedback status / priority / note (super-admin)',
+  })
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateFeedbackDto,
+    @CurrentUser('sub') adminId: string,
   ) {
-    return this.feedbackService.update(id, dto);
+    return this.feedbackService.update(id, dto, adminId);
   }
 }

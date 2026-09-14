@@ -1,7 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { ILike, FindOptionsWhere } from 'typeorm';
 import { OnboardingLeadModelAction } from './actions/onboarding-lead.action';
 import { CreateOnboardingLeadDto } from './dto/create-onboarding-lead.dto';
@@ -38,7 +35,7 @@ export class OnboardingLeadsService {
     const repository = this.onboardingLeadAction['repository'];
     const result = await repository
       .createQueryBuilder('l')
-      .select("COUNT(*)", 'total')
+      .select('COUNT(*)', 'total')
       .addSelect("COUNT(*) FILTER (WHERE l.status = 'new')", 'new')
       .addSelect("COUNT(*) FILTER (WHERE l.status = 'contacted')", 'contacted')
       .addSelect("COUNT(*) FILTER (WHERE l.status = 'qualified')", 'qualified')
