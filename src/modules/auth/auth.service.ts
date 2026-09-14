@@ -575,6 +575,7 @@ export class AuthService {
       sub: user.id,
       email: user.email,
       sessionId: session.id,
+      role: user.role,
       jti: crypto.randomUUID(),
     };
     const accessToken = await this.jwtService.signAsync(payload, {
