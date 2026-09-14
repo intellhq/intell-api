@@ -103,9 +103,6 @@ export class FeedbackService {
       where.push(
         { ...base, name: ILike(`%${term}%`) },
         { ...base, email: ILike(`%${term}%`) },
-        // category branch: apply the search term to the category field.
-        // base already carries query.category as an ILike filter when set,
-        // so spreading base here means both constraints apply to category.
         { ...base, category: ILike(`%${term}%`) },
       );
     } else {
