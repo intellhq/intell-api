@@ -38,7 +38,7 @@ import { CloudinaryModule } from './common/cloudinary/cloudinary.module';
 import { TeamAccessModule } from './modules/team-access/team-access.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { firebaseConfig } from './config/firebase.config';
-// import { SuperAdminModule } from './modules/super-admin/super-admin.module';
+import { SuperAdminModule } from './modules/super-admin/super-admin.module';
 import { OnboardingLeadsModule } from './modules/onboarding-leads/onboarding-leads.module';
 import { FeedbackModule } from './modules/feedback/feedback.module';
 import { RolesGuard } from './common/guards/user-role.guard';
@@ -87,7 +87,7 @@ import { RolesGuard } from './common/guards/user-role.guard';
     CloudinaryModule,
     TeamAccessModule,
     NotificationModule,
-    // SuperAdminModule,
+    SuperAdminModule,
     OnboardingLeadsModule,
     FeedbackModule,
   ],

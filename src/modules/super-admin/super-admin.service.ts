@@ -5,6 +5,7 @@ import { UserRole } from '../../common/enums';
 import { FeedbackService } from '../feedback/feedback.service';
 import { OnboardingLeadsService } from '../onboarding-leads/onboarding-leads.service';
 import { UsersService } from '../users/users.service';
+import { SubscriptionModelAction } from '../users/actions/subscription.action';
 import { QueryOnboardingLeadsDto } from '../onboarding-leads/dto/query-onboarding-leads.dto';
 import { UpdateOnboardingLeadStatusDto } from '../onboarding-leads/dto/update-onboarding-lead-status.dto';
 import { QueryFeedbackDto } from '../feedback/dto/query-feedback.dto';
@@ -23,48 +24,41 @@ import { UpdateAdminStatusDto } from '../users/dto/update-admin-status.dto';
 export class SuperAdminService {
   constructor(
     private readonly superAdminAction: SuperAdminAction,
+    private readonly subscriptionAction: SubscriptionModelAction,
     private readonly feedbackService: FeedbackService,
     private readonly onboardingLeadsService: OnboardingLeadsService,
     private readonly usersService: UsersService,
   ) {}
 
   async getDashboardSummary() {
-    const userCounts = await this.superAdminAction.getUserCountSummary();
-
-    const {
-      total: totalFeedback,
-      open: openFeedback,
-      inProgress: inProgressFeedback,
-      resolved: resolvedFeedback,
-    } = await this.feedbackService.getSummary();
-    const {
-      total: totalLeads,
-      new: newLeads,
-      contacted: contactedLeads,
-      qualified: qualifiedLeads,
-    } = await this.onboardingLeadsService.getSummary();
+    const [userCounts, planCounts, feedbackSummary, leadsSummary] =
+      await Promise.all([
+        this.superAdminAction.getUserCountSummary(),
+        this.subscriptionAction.getPlanCounts(),
+        this.feedbackService.getSummary(),
+        this.onboardingLeadsService.getSummary(),
+      ]);
 
     return {
       users: {
         total: userCounts.total,
         newThisMonth: userCounts.newThisMonth,
-        // NOTE: free/paid counts require a subscriptions table — not yet implemented
-        free: null,
-        paid: null,
+        free: planCounts.free,
+        paid: planCounts.paid,
       },
       // NOTE: installers require an installer_profiles table — not yet implemented
       installers: null,
       leads: {
-        total: totalLeads,
-        new: newLeads,
-        contacted: contactedLeads,
-        qualified: qualifiedLeads,
+        total: leadsSummary.total,
+        new: leadsSummary.new,
+        contacted: leadsSummary.contacted,
+        qualified: leadsSummary.qualified,
       },
       feedback: {
-        total: totalFeedback,
-        open: openFeedback,
-        inProgress: inProgressFeedback,
-        resolved: resolvedFeedback,
+        total: feedbackSummary.total,
+        open: feedbackSummary.open,
+        inProgress: feedbackSummary.inProgress,
+        resolved: feedbackSummary.resolved,
       },
       // NOTE: aiUsage requires an ai_usage_events table — not yet implemented
       aiUsage: null,

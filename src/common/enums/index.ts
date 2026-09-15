@@ -7,4 +7,6 @@ export * from './inverter-brand.enum';
 export * from './onboarding-lead-status.enum';
 export * from './resolution-status.enum';
 export * from './severity.enum';
+export * from './subscription-plan.enum';
+export * from './subscription-status.enum';
 export * from './user-role';

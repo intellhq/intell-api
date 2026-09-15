@@ -102,9 +102,14 @@ export class FeedbackService {
 
       where.push(
         { ...base, name: ILike(`%${term}%`) },
-        { ...base, email: ILike(`%${term}%`) },
-        { ...base, category: ILike(`%${term}%`) },
+        {
+          ...base,
+          email: ILike(`%${term}%`),
+        },
       );
+      if (!query.category) {
+        where.push({ ...base, category: ILike(`%${term}%`) });
+      }
     } else {
       where.push(base);
     }
@@ -130,7 +135,7 @@ export class FeedbackService {
   async update(
     id: string,
     dto: UpdateFeedbackDto,
-    adminId: string,
+    _adminId: string,
   ): Promise<Feedback> {
     const feedback = await this.findOne(id);
 
@@ -152,10 +157,10 @@ export class FeedbackService {
         ...(dto.adminNote !== undefined && { adminNote: dto.adminNote }),
         ...(transitioningToResolved && {
           resolvedAt: new Date(),
-          resolvedByAdminId: adminId,
-        }),
-        ...(transitioningFromResolved && {
-          resolvedAt: undefined,
+          ...(transitioningFromResolved && {
+            resolvedAt: null,
+            resolvedByAdminId: null,
+          }),
           resolvedByAdminId: undefined,
         }),
       },
