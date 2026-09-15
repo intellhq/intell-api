@@ -420,7 +420,8 @@ export class UsersService {
   async createFreeSubscription(userId: string) {
     const user = await this.findOne(userId);
     if (!user) throw new NotFoundException(SYS_MSG.NOT_FOUND);
-    const existingSub = await this.subscriptionModelAction.getCurrentSubscription(userId);
+    const existingSub =
+      await this.subscriptionModelAction.getCurrentSubscription(userId);
     if (existingSub) throw new ConflictException(SYS_MSG.CONFLICT);
     const sub = await this.subscriptionModelAction.create({
       ...noTransaction(),
@@ -767,7 +768,10 @@ export class UsersService {
   async adminUpdateAdminRole(id: string, role: UserRole): Promise<User> {
     const { In } = await import('typeorm');
     const admin = await this.userModelAction.get({
-      identifierOptions: { id, role: In([UserRole.ADMIN, UserRole.SUPER_ADMIN]) as unknown as UserRole },
+      identifierOptions: {
+        id,
+        role: In([UserRole.ADMIN, UserRole.SUPER_ADMIN]),
+      },
     });
     if (!admin) throw new NotFoundException(SYS_MSG.NOT_FOUND);
     const updated = await this.userModelAction.update({
@@ -782,7 +786,10 @@ export class UsersService {
   async adminUpdateAdminStatus(id: string, status: AdminStatus): Promise<User> {
     const { In } = await import('typeorm');
     const admin = await this.userModelAction.get({
-      identifierOptions: { id, role: In([UserRole.ADMIN, UserRole.SUPER_ADMIN]) as unknown as UserRole },
+      identifierOptions: {
+        id,
+        role: In([UserRole.ADMIN, UserRole.SUPER_ADMIN]),
+      },
     });
     if (!admin) throw new NotFoundException(SYS_MSG.NOT_FOUND);
     const updated = await this.userModelAction.update({
