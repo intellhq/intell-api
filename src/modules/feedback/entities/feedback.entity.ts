@@ -41,10 +41,10 @@ export class Feedback extends AbstractBaseEntity {
   adminNote?: string;
 
   @Column({ type: 'timestamptz', nullable: true })
-  resolvedAt?: Date;
+  resolvedAt?: Date | null;
 
   @Column({ type: 'uuid', nullable: true })
-  resolvedByAdminId?: string;
+  resolvedByAdminId?: string | null;
 
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'user_id' })

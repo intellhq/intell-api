@@ -100,11 +100,13 @@ export class FeedbackService {
     if (query.search) {
       const term = query.search;
 
-      where.push(
-        { ...base, name: ILike(`%${term}%`) },
-        { ...base, email: ILike(`%${term}%`) },
-        { ...base, category: ILike(`%${term}%`) },
-      );
+      where.push({ ...base, name: ILike(`%${term}%`) }, {
+        ...base,
+        email: ILike(`%${term}%`),
+      });
+      if (!query.category) {
+        where.push({ ...base, category: ILike(`%${term}%`) });
+      }
     } else {
       where.push(base);
     }
@@ -152,10 +154,10 @@ export class FeedbackService {
         ...(dto.adminNote !== undefined && { adminNote: dto.adminNote }),
         ...(transitioningToResolved && {
           resolvedAt: new Date(),
-          resolvedByAdminId: adminId,
-        }),
         ...(transitioningFromResolved && {
-          resolvedAt: undefined,
+          resolvedAt: null,
+          resolvedByAdminId: null,
+        }),
           resolvedByAdminId: undefined,
         }),
       },

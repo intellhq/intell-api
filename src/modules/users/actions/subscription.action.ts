@@ -16,21 +16,23 @@ export class SubscriptionModelAction extends AbstractModelAction<Subscription> {
 
   getCurrentSubscription(userId: string): Promise<Subscription | null> {
     return this.repository.findOne({
-      where: { userId, status: SubscriptionStatus.ACTIVE },
+      where: {
+        userId,
+        status: SubscriptionStatus.ACTIVE,
+      },
       order: { startedAt: 'DESC' },
     });
   }
 
   async getPlanCounts(): Promise<{ free: number; paid: number }> {
-    // For each user, pick their most recent active subscription.
-    // A user is "paid" if that subscription is plus or pro.
+    const now = new Date();
     const rows = await this.repository
       .createQueryBuilder('s')
       .select('s.user_id', 'userId')
       .addSelect('s.plan', 'plan')
       .where('s.status = :status', { status: SubscriptionStatus.ACTIVE })
       .andWhere('s.deleted_at IS NULL')
-      // rank per user so we only count the latest active row
+      .andWhere('(s.expires_at IS NULL OR s.expires_at > :now)', { now })
       .distinctOn(['s.user_id'])
       .orderBy('s.user_id')
       .addOrderBy('s.started_at', 'DESC')

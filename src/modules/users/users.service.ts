@@ -420,11 +420,14 @@ export class UsersService {
   async createFreeSubscription(userId: string) {
     const user = await this.findOne(userId);
     if (!user) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    const existingSub = await this.subscriptionModelAction.getCurrentSubscription(userId);
+    if (existingSub) throw new ConflictException(SYS_MSG.CONFLICT);
     const sub = await this.subscriptionModelAction.create({
       ...noTransaction(),
       createPayload: {
         userId: user.id,
         user,
+        startedAt: new Date(),
       },
     });
 
@@ -594,8 +597,7 @@ export class UsersService {
       ...(query.status === UserStatusFilter.PENDING && {
         emailVerified: false,
       }),
-      // state: lives on user_settings (joined relation), not directly filterable
-      // via FindOptionsWhere on users — accepted but not yet applied
+      ...(query.state && { settings: { state: query.state } }),
       role: UserRole.USER,
     };
 
@@ -607,6 +609,7 @@ export class UsersService {
 
       const qb = this.userModelAction['repository']
         .createQueryBuilder('u')
+        .leftJoin('u.settings', 'us')
         .innerJoin(
           (sub) =>
             sub
@@ -632,6 +635,8 @@ export class UsersService {
         qb.andWhere('u.is_active = false');
       if (query.status === UserStatusFilter.PENDING)
         qb.andWhere('u.email_verified = false');
+
+      if (query.state) qb.andWhere('us.state = :state', { state: query.state });
 
       if (query.search) {
         const t = `%${query.search}%`;
@@ -760,7 +765,11 @@ export class UsersService {
   }
 
   async adminUpdateAdminRole(id: string, role: UserRole): Promise<User> {
-    await this.findOne(id);
+    const { In } = await import('typeorm');
+    const admin = await this.userModelAction.get({
+      identifierOptions: { id, role: In([UserRole.ADMIN, UserRole.SUPER_ADMIN]) as unknown as UserRole },
+    });
+    if (!admin) throw new NotFoundException(SYS_MSG.NOT_FOUND);
     const updated = await this.userModelAction.update({
       ...noTransaction(),
       identifierOptions: { id },
@@ -771,7 +780,11 @@ export class UsersService {
   }
 
   async adminUpdateAdminStatus(id: string, status: AdminStatus): Promise<User> {
-    await this.findOne(id);
+    const { In } = await import('typeorm');
+    const admin = await this.userModelAction.get({
+      identifierOptions: { id, role: In([UserRole.ADMIN, UserRole.SUPER_ADMIN]) as unknown as UserRole },
+    });
+    if (!admin) throw new NotFoundException(SYS_MSG.NOT_FOUND);
     const updated = await this.userModelAction.update({
       ...noTransaction(),
       identifierOptions: { id },
