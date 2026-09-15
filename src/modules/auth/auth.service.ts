@@ -331,6 +331,7 @@ export class AuthService {
 
     await this.sendWelcomeEmail(user);
 
+    await this.usersService.createFreeSubscription(user.id);
     return {
       ...tokens,
       ...(bodyRefreshToken && { refreshToken: bodyRefreshToken }),

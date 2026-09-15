@@ -32,6 +32,7 @@ import { Session } from './entities/sessions.entity';
 import { SessionModelAction } from './actions/sessions.action';
 import { CreateSessionDto } from '../auth/dto/create-session.dto';
 import { AdminStatus } from '../../common/enums/admin-status.enum';
+import { SubscriptionStatus } from '../../common/enums/subscription-status.enum';
 import { UserRole } from '../../common/enums/user-role';
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { QueryAdminUsersDto } from './dto/query-admin-users.dto';
@@ -40,6 +41,7 @@ import {
   UserStatusFilter,
 } from './dto/query-super-admin-users.dto';
 import { FindOptionsWhere, ILike } from 'typeorm';
+import { SubscriptionModelAction } from './actions/subscription.action';
 
 const BCRYPT_ROUNDS = 10;
 const SESSION_ABSOLUTE_MAX_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -54,6 +56,7 @@ export class UsersService {
     private readonly userSettingsModelAction: UserSettingsModelAction,
     private readonly invertersService: InvertersService,
     private readonly sessionModelAction: SessionModelAction,
+    private readonly subscriptionModelAction: SubscriptionModelAction,
   ) {}
 
   private async validateAndHashPassword(dto: CreateUserDto): Promise<string> {
@@ -414,6 +417,28 @@ export class UsersService {
     }
   }
 
+  async createFreeSubscription(userId: string) {
+    const user = await this.findOne(userId);
+    if (!user) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    const sub = await this.subscriptionModelAction.create({
+      ...noTransaction(),
+      createPayload: {
+        userId: user.id,
+        user,
+      },
+    });
+
+    return sub;
+  }
+
+  async getCurrentSubscription(userId: string) {
+    return await this.subscriptionModelAction.getCurrentSubscription(userId);
+  }
+
+  async getPlanCounts() {
+    return await this.subscriptionModelAction.getPlanCounts();
+  }
+
   /**
    * METHODS FOR UPDATING A USER'S SETTING
    */
@@ -569,11 +594,71 @@ export class UsersService {
       ...(query.status === UserStatusFilter.PENDING && {
         emailVerified: false,
       }),
-      // plan: requires subscriptions table — not yet implemented
       // state: lives on user_settings (joined relation), not directly filterable
-      // via FindOptionsWhere on users — both accepted but not yet applied
+      // via FindOptionsWhere on users — accepted but not yet applied
       role: UserRole.USER,
     };
+
+    // When a plan filter is provided we must join subscriptions, which
+    // FindOptionsWhere cannot express. Drop to a raw QueryBuilder in that case.
+    if (query.plan) {
+      const page = query.page ?? 1;
+      const limit = query.limit ?? 20;
+
+      const qb = this.userModelAction['repository']
+        .createQueryBuilder('u')
+        .innerJoin(
+          (sub) =>
+            sub
+              .from('subscriptions', 's')
+              .select('DISTINCT ON (s.user_id) s.user_id', 'userId')
+              .addSelect('s.plan', 'plan')
+              .where('s.status = :status', {
+                status: SubscriptionStatus.ACTIVE,
+              })
+              .andWhere('s.deleted_at IS NULL')
+              .orderBy('s.user_id')
+              .addOrderBy('s.started_at', 'DESC'),
+          'active_sub',
+          'active_sub."userId" = u.id',
+        )
+        .where('u.role = :role', { role: UserRole.USER })
+        .andWhere('u.deleted_at IS NULL')
+        .andWhere('active_sub.plan = :plan', { plan: query.plan });
+
+      if (query.status === UserStatusFilter.ACTIVE)
+        qb.andWhere('u.is_active = true');
+      if (query.status === UserStatusFilter.INACTIVE)
+        qb.andWhere('u.is_active = false');
+      if (query.status === UserStatusFilter.PENDING)
+        qb.andWhere('u.email_verified = false');
+
+      if (query.search) {
+        const t = `%${query.search}%`;
+        qb.andWhere(
+          '(u.first_name ILIKE :t OR u.last_name ILIKE :t OR u.email ILIKE :t)',
+          { t },
+        );
+      }
+
+      const total = await qb.getCount();
+      const payload = await qb
+        .orderBy('u.created_at', 'DESC')
+        .skip((page - 1) * limit)
+        .take(limit)
+        .getMany();
+
+      return {
+        payload,
+        paginationMeta: {
+          total,
+          page,
+          limit,
+          hasNext: page * limit < total,
+          hasPrev: page > 1,
+        },
+      };
+    }
 
     const where: Where[] = [];
 
