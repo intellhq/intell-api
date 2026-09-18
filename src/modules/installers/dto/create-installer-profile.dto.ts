@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsEmail,
   IsEnum,
   IsOptional,
@@ -8,7 +9,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
-import { InstallerType } from '../../../common/enums';
+import { InstallerType, InverterBrand } from '../../../common/enums';
 import { Transform } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { randomUUID } from 'crypto';
@@ -65,8 +66,16 @@ export class CreateInstallerProfileDto {
   @MaxLength(45)
   region?: string;
 
-  @ApiProperty({ example: ['victron', 'growatt'] })
-  supportedBrands?: string[];
+  @ApiProperty({
+    example: [InverterBrand.VICTRON],
+    enum: InverterBrand,
+    isArray: true,
+    required: false,
+  })
+  @IsOptional()
+  @IsArray()
+  @IsEnum(InverterBrand, { each: true })
+  supportedBrands?: InverterBrand[];
 
   @ApiProperty({ example: 'Ikorodu' })
   @IsOptional()

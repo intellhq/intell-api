@@ -20,8 +20,8 @@ export class InverterAssignment extends AbstractBaseEntity {
   @Column({ type: 'uuid' })
   installerProfileId: string;
 
-  @Column({ type: 'uuid' })
-  assignedByUserId: string;
+  @Column({ type: 'uuid', nullable: true })
+  assignedByUserId: string | null;
 
   @Column({
     type: 'enum',
@@ -53,7 +53,7 @@ export class InverterAssignment extends AbstractBaseEntity {
   @JoinColumn({ name: 'installer_profile_id' })
   installerProfile: InstallerProfile;
 
-  @ManyToOne(() => User, { onDelete: 'SET NULL' })
+  @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'assigned_by_user_id' })
-  assignedBy: User;
+  assignedBy: User | null;
 }

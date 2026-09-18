@@ -4,6 +4,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { InstallerProfileModelAction } from './actions/installer-profile.action';
 import { InverterAssignmentModelAction } from './actions/inverter-assignment.action';
 import { InstallerProfile } from './entities/installer_profiles.entity';
@@ -11,6 +13,7 @@ import { InverterAssignment } from './entities/inverter-assignment.entity';
 import { InstallerStatus } from '../../common/enums/installer-status.enum';
 import { AssignmentStatus } from '../../common/enums/assignment-status.enum';
 import { UserRole } from '../../common/enums/user-role';
+import { User } from '../users/entities/user.entity';
 import { SYS_MSG } from '../../common/constants/sys-msg';
 import { noTransaction } from '../../common/constants/transaction-options';
 import { InvertersService } from '../inverters/inverters.service';
@@ -27,6 +30,7 @@ export class InstallersService {
     private readonly assignmentAction: InverterAssignmentModelAction,
     private readonly invertersService: InvertersService,
     private readonly usersService: UsersService,
+    @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
   // ── Lookups ─────────────────────────────────────────────────────────────────
@@ -159,14 +163,21 @@ export class InstallersService {
     const existing = await this.findProfileByUserId(dto.userId);
     if (existing) throw new ConflictException(SYS_MSG.CONFLICT);
 
-    // Promote the user to installer role
-    await this.usersService.promoteUser(dto.userId, {
-      role: UserRole.INSTALLER,
-    });
+    // Promote role and create profile atomically — if either write fails
+    // the user must not be left with INSTALLER role without a profile
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    return this.profileAction.create({
-      ...noTransaction(),
-      createPayload: {
+    try {
+      await queryRunner.manager
+        .createQueryBuilder()
+        .update(User)
+        .set({ role: UserRole.INSTALLER })
+        .where('id = :id', { id: dto.userId })
+        .execute();
+
+      const profile = queryRunner.manager.create(InstallerProfile, {
         userId: dto.userId,
         type: dto.type,
         companyName: dto.companyName ?? null,
@@ -178,10 +189,20 @@ export class InstallersService {
         supportedBrands:
           (dto.supportedBrands as InstallerProfile['supportedBrands']) ?? [],
         notes: dto.notes ?? null,
-        // new profiles start as PENDING until super-admin activates them
         status: InstallerStatus.PENDING,
-      },
-    });
+      });
+
+      const saved = await queryRunner.manager.save(InstallerProfile, profile);
+      await queryRunner.commitTransaction();
+      return saved;
+    } catch (err) {
+      if (queryRunner.isTransactionActive) {
+        await queryRunner.rollbackTransaction();
+      }
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   // ── Super-admin: update status ───────────────────────────────────────────────
@@ -190,19 +211,63 @@ export class InstallersService {
     id: string,
     dto: UpdateInstallerStatusDto,
   ): Promise<InstallerProfile> {
-    const profile = await this.findProfileById(id);
-
-    // When suspending, revoke all active assignments for this installer
+    // For suspension, we need to atomically lock the profile, revoke all
+    // assignments, and persist the status change so no new assignments
+    // can be created against a profile mid-suspension.
     if (dto.status === InstallerStatus.SUSPENDED) {
-      await this._revokeAllAssignmentsForProfile(id);
+      const queryRunner = this.dataSource.createQueryRunner();
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
+
+      try {
+        // Lock the profile row for the duration of the transaction
+        const profile = await queryRunner.manager
+          .createQueryBuilder(InstallerProfile, 'p')
+          .setLock('pessimistic_write')
+          .where('p.id = :id', { id })
+          .getOne();
+
+        if (!profile) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+
+        // Bulk-revoke all active assignments within the same transaction
+        await queryRunner.manager
+          .createQueryBuilder()
+          .update(InverterAssignment)
+          .set({ status: AssignmentStatus.REVOKED, revokedAt: new Date() })
+          .where('installer_profile_id = :id AND status = :status', {
+            id,
+            status: AssignmentStatus.ACTIVE,
+          })
+          .execute();
+
+        // Persist the suspended status
+        await queryRunner.manager
+          .createQueryBuilder()
+          .update(InstallerProfile)
+          .set({ status: InstallerStatus.SUSPENDED })
+          .where('id = :id', { id })
+          .execute();
+
+        await queryRunner.commitTransaction();
+
+        return { ...profile, status: InstallerStatus.SUSPENDED };
+      } catch (err) {
+        if (queryRunner.isTransactionActive) {
+          await queryRunner.rollbackTransaction();
+        }
+        throw err;
+      } finally {
+        await queryRunner.release();
+      }
     }
 
+    // Non-suspension status changes need no locking
+    const profile = await this.findProfileById(id);
     const updated = await this.profileAction.update({
       ...noTransaction(),
       identifierOptions: { id: profile.id },
       updatePayload: { status: dto.status },
     });
-
     if (!updated) throw new NotFoundException(SYS_MSG.NOT_FOUND);
     return updated;
   }
@@ -219,31 +284,43 @@ export class InstallersService {
       throw new ForbiddenException(SYS_MSG.FORBIDDEN);
     }
 
-    // Installer profile must exist and be ACTIVE
-    const profile = await this.findProfileById(dto.installerProfileId);
-    if (profile.status !== InstallerStatus.ACTIVE) {
-      throw new ConflictException(
-        'Installer profile is not active and cannot be assigned.',
-      );
-    }
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    // Guard against duplicate active assignment (DB index also enforces this)
-    const existing = await this.assignmentAction.get({
-      identifierOptions: {
-        inverterId: dto.inverterId,
-        installerProfileId: dto.installerProfileId,
-        status: AssignmentStatus.ACTIVE,
-      },
-    });
-    if (existing) {
-      throw new ConflictException(
-        'This installer already has an active assignment on this inverter.',
-      );
-    }
+    try {
+      // Acquire a pessimistic read lock on the profile so this transaction
+      // blocks until any concurrent suspension transaction releases its
+      // write lock, preventing assignment insertion during suspension.
+      const profile = await queryRunner.manager
+        .createQueryBuilder(InstallerProfile, 'p')
+        .setLock('pessimistic_read')
+        .where('p.id = :id', { id: dto.installerProfileId })
+        .getOne();
 
-    return this.assignmentAction.create({
-      ...noTransaction(),
-      createPayload: {
+      if (!profile) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+
+      if (profile.status !== InstallerStatus.ACTIVE) {
+        throw new ConflictException(
+          'Installer profile is not active and cannot be assigned.',
+        );
+      }
+
+      // Guard against duplicate active assignment
+      const existing = await queryRunner.manager.findOne(InverterAssignment, {
+        where: {
+          inverterId: dto.inverterId,
+          installerProfileId: dto.installerProfileId,
+          status: AssignmentStatus.ACTIVE,
+        },
+      });
+      if (existing) {
+        throw new ConflictException(
+          'This installer already has an active assignment on this inverter.',
+        );
+      }
+
+      const assignment = queryRunner.manager.create(InverterAssignment, {
         inverterId: dto.inverterId,
         installerProfileId: dto.installerProfileId,
         assignedByUserId: requestingUserId,
@@ -251,8 +328,22 @@ export class InstallersService {
         status: AssignmentStatus.ACTIVE,
         assignedAt: new Date(),
         revokedAt: null,
-      },
-    });
+      });
+
+      const saved = await queryRunner.manager.save(
+        InverterAssignment,
+        assignment,
+      );
+      await queryRunner.commitTransaction();
+      return saved;
+    } catch (err) {
+      if (queryRunner.isTransactionActive) {
+        await queryRunner.rollbackTransaction();
+      }
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   // ── Assignments: revoke ──────────────────────────────────────────────────────
@@ -328,17 +419,5 @@ export class InstallersService {
     });
 
     return payload;
-  }
-
-  // ── Internal helpers ─────────────────────────────────────────────────────────
-
-  private async _revokeAllAssignmentsForProfile(
-    installerProfileId: string,
-  ): Promise<void> {
-    const repository = this.assignmentAction['repository'];
-    await repository.update(
-      { installerProfileId, status: AssignmentStatus.ACTIVE },
-      { status: AssignmentStatus.REVOKED, revokedAt: new Date() },
-    );
   }
 }
