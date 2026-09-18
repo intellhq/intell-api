@@ -26,6 +26,8 @@ import { QueryAdminUsersDto } from '../users/dto/query-admin-users.dto';
 import { CreateAdminDto } from '../users/dto/create-admin.dto';
 import { UpdateAdminRoleDto } from '../users/dto/update-admin-role.dto';
 import { UpdateAdminStatusDto } from '../users/dto/update-admin-status.dto';
+import { QueryInstallersDto } from '../installers/dto/query-installers.dto';
+import { UpdateInstallerStatusDto } from '../installers/dto/update-installer-status.dto';
 
 @ApiTags('Super Admin')
 @ApiBearerAuth()
@@ -103,16 +105,27 @@ export class SuperAdminController {
   }
 
   @Get('installers/summary')
-  getInstallersSummary() {}
+  getInstallersSummary() {
+    return this.superAdminService.getInstallersSummary();
+  }
 
   @Get('installers')
-  listInstallers() {}
+  listInstallers(@Query() query: QueryInstallersDto) {
+    return this.superAdminService.findInstallers(query);
+  }
 
   @Get('installers/:id')
-  getInstaller() {}
+  getInstaller(@Param('id', ParseUUIDPipe) id: string) {
+    return this.superAdminService.findInstaller(id);
+  }
 
   @Patch('installers/:id/status')
-  toggleInstallerStatus() {}
+  toggleInstallerStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateInstallerStatusDto,
+  ) {
+    return this.superAdminService.updateInstallerStatus(id, dto);
+  }
 
   // ── Onboarding leads ────────────────────────────────────────────────────────
 
