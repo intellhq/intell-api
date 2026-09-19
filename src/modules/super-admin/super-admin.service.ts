@@ -6,6 +6,7 @@ import { FeedbackService } from '../feedback/feedback.service';
 import { OnboardingLeadsService } from '../onboarding-leads/onboarding-leads.service';
 import { UsersService } from '../users/users.service';
 import { SubscriptionModelAction } from '../users/actions/subscription.action';
+import { InstallersService } from '../installers/installers.service';
 import { QueryOnboardingLeadsDto } from '../onboarding-leads/dto/query-onboarding-leads.dto';
 import { UpdateOnboardingLeadStatusDto } from '../onboarding-leads/dto/update-onboarding-lead-status.dto';
 import { QueryFeedbackDto } from '../feedback/dto/query-feedback.dto';
@@ -19,6 +20,9 @@ import { QueryAdminUsersDto } from '../users/dto/query-admin-users.dto';
 import { CreateAdminDto } from '../users/dto/create-admin.dto';
 import { UpdateAdminRoleDto } from '../users/dto/update-admin-role.dto';
 import { UpdateAdminStatusDto } from '../users/dto/update-admin-status.dto';
+import { QueryInstallersDto } from '../installers/dto/query-installers.dto';
+import { UpdateInstallerStatusDto } from '../installers/dto/update-installer-status.dto';
+import { CreateInstallerProfileDto } from '../installers/dto/create-installer-profile.dto';
 
 @Injectable()
 export class SuperAdminService {
@@ -28,16 +32,23 @@ export class SuperAdminService {
     private readonly feedbackService: FeedbackService,
     private readonly onboardingLeadsService: OnboardingLeadsService,
     private readonly usersService: UsersService,
+    private readonly installersService: InstallersService,
   ) {}
 
   async getDashboardSummary() {
-    const [userCounts, planCounts, feedbackSummary, leadsSummary] =
-      await Promise.all([
-        this.superAdminAction.getUserCountSummary(),
-        this.subscriptionAction.getPlanCounts(),
-        this.feedbackService.getSummary(),
-        this.onboardingLeadsService.getSummary(),
-      ]);
+    const [
+      userCounts,
+      planCounts,
+      feedbackSummary,
+      leadsSummary,
+      installerSummary,
+    ] = await Promise.all([
+      this.superAdminAction.getUserCountSummary(),
+      this.subscriptionAction.getPlanCounts(),
+      this.feedbackService.getSummary(),
+      this.onboardingLeadsService.getSummary(),
+      this.installersService.getSummary(),
+    ]);
 
     return {
       users: {
@@ -46,8 +57,11 @@ export class SuperAdminService {
         free: planCounts.free,
         paid: planCounts.paid,
       },
-      // NOTE: installers require an installer_profiles table — not yet implemented
-      installers: null,
+      installers: {
+        total: installerSummary.total,
+        partners: installerSummary.partners,
+        technicians: installerSummary.technicians,
+      },
       leads: {
         total: leadsSummary.total,
         new: leadsSummary.new,
@@ -107,6 +121,28 @@ export class SuperAdminService {
 
   updateAdminStatus(id: string, dto: UpdateAdminStatusDto) {
     return this.usersService.adminUpdateAdminStatus(id, dto.status);
+  }
+
+  // ── Installers ───────────────────────────────────────────────────────────────
+
+  getInstallersSummary() {
+    return this.installersService.getSummary();
+  }
+
+  findInstallers(query: QueryInstallersDto) {
+    return this.installersService.findAll(query);
+  }
+
+  findInstaller(id: string) {
+    return this.installersService.findOne(id);
+  }
+
+  updateInstallerStatus(id: string, dto: UpdateInstallerStatusDto) {
+    return this.installersService.updateStatus(id, dto);
+  }
+
+  createInstallerProfile(dto: CreateInstallerProfileDto) {
+    return this.installersService.createProfile(dto);
   }
 
   // ── Onboarding leads ────────────────────────────────────────────────────────

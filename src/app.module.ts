@@ -42,6 +42,7 @@ import { SuperAdminModule } from './modules/super-admin/super-admin.module';
 import { OnboardingLeadsModule } from './modules/onboarding-leads/onboarding-leads.module';
 import { FeedbackModule } from './modules/feedback/feedback.module';
 import { RolesGuard } from './common/guards/user-role.guard';
+import { InstallersModule } from './modules/installers/installers.module';
 
 @Module({
   imports: [
@@ -90,6 +91,7 @@ import { RolesGuard } from './common/guards/user-role.guard';
     SuperAdminModule,
     OnboardingLeadsModule,
     FeedbackModule,
+    InstallersModule,
   ],
   providers: [
     {

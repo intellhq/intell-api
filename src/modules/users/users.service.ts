@@ -42,6 +42,7 @@ import {
 } from './dto/query-super-admin-users.dto';
 import { FindOptionsWhere, ILike } from 'typeorm';
 import { SubscriptionModelAction } from './actions/subscription.action';
+import { PromoteUserDto } from './dto/promote-user.dto';
 
 const BCRYPT_ROUNDS = 10;
 const SESSION_ABSOLUTE_MAX_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -210,6 +211,22 @@ export class UsersService {
     if (!updated) {
       throw new InternalServerErrorException(SYS_MSG.INTERNAL_SERVER_ERROR);
     }
+    return updated;
+  }
+
+  async promoteUser(id: string, dto: PromoteUserDto): Promise<User> {
+    await this.findOne(id);
+
+    const updated = await this.userModelAction.update({
+      ...noTransaction(),
+      identifierOptions: { id },
+      updatePayload: {
+        role: dto.role,
+      },
+    });
+    if (!updated)
+      throw new InternalServerErrorException(SYS_MSG.INTERNAL_SERVER_ERROR);
+
     return updated;
   }
 

@@ -7,6 +7,7 @@ import { User } from '../users/entities/user.entity';
 import { FeedbackModule } from '../feedback/feedback.module';
 import { OnboardingLeadsModule } from '../onboarding-leads/onboarding-leads.module';
 import { UsersModule } from '../users/users.module';
+import { InstallersModule } from '../installers/installers.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { UsersModule } from '../users/users.module';
     FeedbackModule,
     OnboardingLeadsModule,
     UsersModule,
+    InstallersModule,
   ],
   providers: [SuperAdminService, SuperAdminAction],
   controllers: [SuperAdminController],

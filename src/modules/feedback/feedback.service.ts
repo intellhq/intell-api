@@ -135,7 +135,7 @@ export class FeedbackService {
   async update(
     id: string,
     dto: UpdateFeedbackDto,
-    _adminId: string,
+    adminId: string,
   ): Promise<Feedback> {
     const feedback = await this.findOne(id);
 
@@ -157,11 +157,12 @@ export class FeedbackService {
         ...(dto.adminNote !== undefined && { adminNote: dto.adminNote }),
         ...(transitioningToResolved && {
           resolvedAt: new Date(),
-          ...(transitioningFromResolved && {
-            resolvedAt: null,
-            resolvedByAdminId: null,
-          }),
-          resolvedByAdminId: undefined,
+          resolvedByAdminId: adminId,
+        }),
+        ...(transitioningFromResolved && {
+          resolvedAt: null,
+          resolvedByAdminId: null,
+          // resolvedByAdminId: adminId,
         }),
       },
     });
