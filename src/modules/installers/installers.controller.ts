@@ -9,7 +9,9 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InstallersService } from './installers.service';
-import { CreateAssignmentDto, CreateAssignmentBodyDto } from './dto/create-assignment.dto';
+import {
+  CreateAssignmentBodyDto,
+} from './dto/create-assignment.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Installers')

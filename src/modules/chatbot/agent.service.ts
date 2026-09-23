@@ -10,7 +10,11 @@ import { SYSTEM_PROMPT } from './helpers/prompts';
 import { Message } from './entities/message.entity';
 import { SYSTEM_SENDER_ID } from './helpers/constants';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
-import { isAIMessage, isAIMessageChunk, type UsageMetadata } from '@langchain/core/messages';
+import {
+  isAIMessage,
+  type UsageMetadata,
+  // AIMessage
+} from '@langchain/core/messages';
 import { z } from 'zod';
 import { AgentCardResponse } from './types';
 import { AiUsageEventModelAction } from '../ai-usage/actions/ai-usage-event.action';
@@ -120,20 +124,18 @@ export class AgentService {
     // The ReAct agent makes one model call per reasoning step (including tool
     // calls), so there may be more than one AIMessage in the response.
     // Sum usage across all of them to capture the full cost of the turn.
-    const totalUsage = msgs
-      .filter(isAIMessage)
-      .reduce<UsageMetadata>(
-        (acc, msg) => {
-          const u = msg.usage_metadata;
-          if (!u) return acc;
-          return {
-            input_tokens: acc.input_tokens + u.input_tokens,
-            output_tokens: acc.output_tokens + u.output_tokens,
-            total_tokens: acc.total_tokens + u.total_tokens,
-          };
-        },
-        { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
-      );
+    const totalUsage = msgs.filter(isAIMessage).reduce<UsageMetadata>(
+      (acc, msg) => {
+        const u = msg.usage_metadata;
+        if (!u) return acc;
+        return {
+          input_tokens: acc.input_tokens + u.input_tokens,
+          output_tokens: acc.output_tokens + u.output_tokens,
+          total_tokens: acc.total_tokens + u.total_tokens,
+        };
+      },
+      { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
+    );
 
     if (totalUsage.total_tokens > 0) {
       this.logUsage(userId, AiUsageEventType.CHAT_MESSAGE, totalUsage, chatId);

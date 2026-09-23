@@ -16,8 +16,8 @@ import { Chat } from '../../chatbot/entities/chat.entity';
  * intentionally never set — rows are written once and never modified.
  */
 @Entity('ai_usage_events')
-@Index(['userId', 'createdAt'])  // per-user time-series queries
-@Index(['createdAt'])            // global aggregate queries
+@Index(['userId', 'createdAt']) // per-user time-series queries
+@Index(['createdAt']) // global aggregate queries
 export class AiUsageEvent extends AbstractBaseEntity {
   @Column({ type: 'uuid' })
   userId: string;
