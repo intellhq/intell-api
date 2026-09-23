@@ -10,8 +10,12 @@ import { SYSTEM_PROMPT } from './helpers/prompts';
 import { Message } from './entities/message.entity';
 import { SYSTEM_SENDER_ID } from './helpers/constants';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
+import { isAIMessage, isAIMessageChunk, type UsageMetadata } from '@langchain/core/messages';
 import { z } from 'zod';
 import { AgentCardResponse } from './types';
+import { AiUsageEventModelAction } from '../ai-usage/actions/ai-usage-event.action';
+import { AiUsageEventType } from '../../common/enums/ai-usage-event-type.enum';
+import { noTransaction } from '../../common/constants/transaction-options';
 
 @Injectable()
 export class AgentService {
@@ -30,6 +34,7 @@ export class AgentService {
     systemInsightsReader: SystemInsightsReader,
     @Inject(chatbotConfig.KEY)
     chatBotCfg: ConfigType<typeof chatbotConfig>,
+    private readonly aiUsageAction: AiUsageEventModelAction,
   ) {
     this.model = new ChatGoogleGenerativeAI({
       model: 'gemini-3.5-flash',
@@ -42,10 +47,41 @@ export class AgentService {
     this.systemInsightsReader = systemInsightsReader;
   }
 
+  // ── Token logging ────────────────────────────────────────────────────────────
+
+  /**
+   * Fire-and-forget usage event write.
+   * Never awaited — a failure here must never surface to the caller.
+   */
+  private logUsage(
+    userId: string,
+    eventType: AiUsageEventType,
+    usage: UsageMetadata,
+    chatId?: string,
+  ): void {
+    void this.aiUsageAction
+      .create({
+        ...noTransaction(),
+        createPayload: {
+          userId,
+          chatId: chatId ?? null,
+          eventType,
+          inputTokens: usage.input_tokens,
+          outputTokens: usage.output_tokens,
+          totalTokens: usage.total_tokens,
+        },
+      })
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`Failed to log AI usage event: ${msg}`);
+      });
+  }
+
   async invokeWithHistory(
     messages: Message[],
     userId: string,
     preferredLanguage?: string,
+    chatId?: string,
   ) {
     // Build a readable conversation history from all messages except the last one.
     // This gets injected into the system prompt so the agent has context without
@@ -80,6 +116,29 @@ export class AgentService {
       { recursionLimit: 10 },
     );
     const msgs = response.messages;
+
+    // The ReAct agent makes one model call per reasoning step (including tool
+    // calls), so there may be more than one AIMessage in the response.
+    // Sum usage across all of them to capture the full cost of the turn.
+    const totalUsage = msgs
+      .filter(isAIMessage)
+      .reduce<UsageMetadata>(
+        (acc, msg) => {
+          const u = msg.usage_metadata;
+          if (!u) return acc;
+          return {
+            input_tokens: acc.input_tokens + u.input_tokens,
+            output_tokens: acc.output_tokens + u.output_tokens,
+            total_tokens: acc.total_tokens + u.total_tokens,
+          };
+        },
+        { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
+      );
+
+    if (totalUsage.total_tokens > 0) {
+      this.logUsage(userId, AiUsageEventType.CHAT_MESSAGE, totalUsage, chatId);
+    }
+
     return msgs[msgs.length - 1].content;
   }
 
@@ -97,6 +156,7 @@ export class AgentService {
     userId: string,
     onToken: (chunk: string) => void,
     preferredLanguage?: string,
+    chatId?: string,
   ): Promise<string> {
     const historyLines = messages
       .slice(0, -1)
@@ -126,6 +186,9 @@ export class AgentService {
     );
 
     let fullContent = '';
+    // Gemini streams cumulative usage totals on each chunk — track the last
+    // non-null value so we have the final totals once the stream ends.
+    let lastUsage: UsageMetadata | null = null;
 
     try {
       const stream = await agent.stream(
@@ -144,6 +207,15 @@ export class AgentService {
           fullContent += message.content;
           onToken(message.content);
         }
+
+        // Capture the most recent usage metadata — each chunk carries the
+        // running cumulative total, so the last one is the final cost.
+        // The stream yields BaseMessage but Gemini populates usage_metadata
+        // on AIMessageChunk instances — check the property defensively.
+        const maybeUsage = (message as unknown as Record<string, unknown>)['usage_metadata'];
+        if (maybeUsage && typeof maybeUsage === 'object') {
+          lastUsage = maybeUsage as UsageMetadata;
+        }
         // Tool-call chunks from the agent node have no text content — skip them.
       }
     } catch (err) {
@@ -155,6 +227,10 @@ export class AgentService {
           'Sorry, something went wrong on my end. Please try again.';
         onToken(fullContent);
       }
+    }
+
+    if (lastUsage && lastUsage.total_tokens > 0) {
+      this.logUsage(userId, AiUsageEventType.CHAT_MESSAGE, lastUsage, chatId);
     }
 
     return fullContent;
@@ -173,7 +249,11 @@ export class AgentService {
    * Generates a short title (3–6 words) for a chat based on the user's first message.
    * Returns null if generation fails — callers should handle that gracefully.
    */
-  async generateChatTitle(firstUserMessage: string): Promise<string | null> {
+  async generateChatTitle(
+    firstUserMessage: string,
+    userId: string,
+    chatId?: string,
+  ): Promise<string | null> {
     try {
       const titlePrompt =
         `You are a chat title generator. Given the user's first message, produce a short title ` +
@@ -183,6 +263,16 @@ export class AgentService {
       const response = await this.model.invoke([
         { role: 'user', content: titlePrompt },
       ]);
+
+      if (response.usage_metadata) {
+        this.logUsage(
+          userId,
+          AiUsageEventType.TITLE_GENERATION,
+          response.usage_metadata,
+          chatId,
+        );
+      }
+
       const title =
         typeof response.content === 'string'
           ? response.content.trim()
@@ -208,7 +298,9 @@ export class AgentService {
   async generateCards(
     userMessage: string,
     agentResponse: string,
+    userId: string,
     preferredLanguage?: string,
+    chatId?: string,
   ): Promise<AgentCardResponse | null> {
     try {
       const cardSchema = z.object({
@@ -256,6 +348,23 @@ export class AgentService {
           content: `User asked: ${userMessage}\n\nAssistant responded: ${agentResponse}`,
         },
       ]);
+
+      // withStructuredOutput wraps the model — usage comes back on the raw
+      // response via llmOutput. Access it through the underlying AIMessage
+      // by invoking the base model directly for the usage data.
+      // Simpler: invoke the base model with the same messages and capture usage,
+      // but that doubles the API call. Instead we use a type assertion here
+      // because the structured model passes usage_metadata through on the
+      // intermediate AIMessage before parsing.
+      const rawResult = result as unknown as { usage_metadata?: UsageMetadata };
+      if (rawResult.usage_metadata) {
+        this.logUsage(
+          userId,
+          AiUsageEventType.CARD_GENERATION,
+          rawResult.usage_metadata,
+          chatId,
+        );
+      }
 
       return result.cards.length > 0 ? result : null;
     } catch {

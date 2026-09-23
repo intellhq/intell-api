@@ -62,7 +62,7 @@ export class ChatService {
     // Generate the title from the starting message before creating the chat
     // so it's included in the response object right away.
     const title =
-      (await this.llmService.generateChatTitle(dto.startingMessage)) ??
+      (await this.llmService.generateChatTitle(dto.startingMessage, userId)) ??
       'New Chat';
 
     const chatPayload: Partial<Chat> = {
@@ -216,6 +216,7 @@ export class ChatService {
         dto.senderId,
         onToken,
         userPreferredLanguage ? userPreferredLanguage : undefined,
+        dto.chatId,
       );
 
       // 6. Save the complete bot message to DB
@@ -240,7 +241,9 @@ export class ChatService {
               .generateCards(
                 dto.textContent,
                 fullContent,
+                dto.senderId,
                 userPreferredLanguage ?? undefined,
+                dto.chatId,
               )
               .then((cardResponse) => {
                 if (cardResponse) {
@@ -336,6 +339,7 @@ export class ChatService {
         messagesInContext,
         dto.senderId,
         userPreferredLanguage ? userPreferredLanguage : undefined,
+        dto.chatId,
       );
       botMessageContent = result as string;
     } catch (err) {
