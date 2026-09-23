@@ -7,6 +7,7 @@ import { OnboardingLeadsService } from '../onboarding-leads/onboarding-leads.ser
 import { UsersService } from '../users/users.service';
 import { SubscriptionModelAction } from '../users/actions/subscription.action';
 import { InstallersService } from '../installers/installers.service';
+import { AiUsageEventModelAction } from '../ai-usage/actions/ai-usage-event.action';
 import { QueryOnboardingLeadsDto } from '../onboarding-leads/dto/query-onboarding-leads.dto';
 import { UpdateOnboardingLeadStatusDto } from '../onboarding-leads/dto/update-onboarding-lead-status.dto';
 import { QueryFeedbackDto } from '../feedback/dto/query-feedback.dto';
@@ -25,11 +26,25 @@ import { UpdateInstallerStatusDto } from '../installers/dto/update-installer-sta
 import { CreateInstallerProfileDto } from '../installers/dto/create-installer-profile.dto';
 import { ChartPeriod, UsersChartQueryDto } from './dto/users-chart-query.dto';
 
+// Maps ChartPeriod to the DATE_TRUNC precision and TO_CHAR label format
+const PERIOD_TRUNC = {
+  [ChartPeriod.WEEKLY]: 'week',
+  [ChartPeriod.MONTHLY]: 'month',
+  [ChartPeriod.YEARLY]: 'year',
+} as const;
+
+const PERIOD_LABEL_FMT: Record<ChartPeriod, string> = {
+  [ChartPeriod.WEEKLY]: `'IYYY-"W"IW'`,
+  [ChartPeriod.MONTHLY]: `'Mon YYYY'`,
+  [ChartPeriod.YEARLY]: `'YYYY'`,
+};
+
 @Injectable()
 export class SuperAdminService {
   constructor(
     private readonly superAdminAction: SuperAdminAction,
     private readonly subscriptionAction: SubscriptionModelAction,
+    private readonly aiUsageAction: AiUsageEventModelAction,
     private readonly feedbackService: FeedbackService,
     private readonly onboardingLeadsService: OnboardingLeadsService,
     private readonly usersService: UsersService,
@@ -43,12 +58,14 @@ export class SuperAdminService {
       feedbackSummary,
       leadsSummary,
       installerSummary,
+      aiUsage,
     ] = await Promise.all([
       this.superAdminAction.getUserCountSummary(),
       this.subscriptionAction.getPlanCounts(),
       this.feedbackService.getSummary(),
       this.onboardingLeadsService.getSummary(),
       this.installersService.getSummary(),
+      this.aiUsageAction.getGlobalTokenSummary(),
     ]);
 
     return {
@@ -75,8 +92,11 @@ export class SuperAdminService {
         inProgress: feedbackSummary.inProgress,
         resolved: feedbackSummary.resolved,
       },
-      // NOTE: aiUsage requires an ai_usage_events table — not yet implemented
-      aiUsage: null,
+      aiUsage: {
+        inputTokens: aiUsage.inputTokens,
+        outputTokens: aiUsage.outputTokens,
+        totalTokens: aiUsage.totalTokens,
+      },
     };
   }
 
@@ -84,6 +104,19 @@ export class SuperAdminService {
     const period = query.period ?? ChartPeriod.MONTHLY;
     const points = await this.subscriptionAction.getPlanCountsByPeriod(
       period,
+      query.startDate,
+      query.endDate,
+    );
+    return { period, points };
+  }
+
+  async getAiUsageChart(query: UsersChartQueryDto) {
+    const period = query.period ?? ChartPeriod.MONTHLY;
+    const trunc = PERIOD_TRUNC[period];
+    const labelFmt = PERIOD_LABEL_FMT[period];
+    const points = await this.aiUsageAction.getTokenCountsByPeriod(
+      trunc,
+      labelFmt,
       query.startDate,
       query.endDate,
     );

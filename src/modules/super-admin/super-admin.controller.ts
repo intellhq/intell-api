@@ -50,7 +50,9 @@ export class SuperAdminController {
   }
 
   @Get('dashboard/ai-usage-chart')
-  getAiUsageChart() {}
+  getAiUsageChart(@Query() query: UsersChartQueryDto) {
+    return this.superAdminService.getAiUsageChart(query);
+  }
 
   @Get('dashboard/recent-users')
   getRecentUsers(@Query() pagination: PaginationDto) {
