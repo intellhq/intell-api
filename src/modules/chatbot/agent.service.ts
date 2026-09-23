@@ -10,8 +10,16 @@ import { SYSTEM_PROMPT } from './helpers/prompts';
 import { Message } from './entities/message.entity';
 import { SYSTEM_SENDER_ID } from './helpers/constants';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
+import {
+  isAIMessage,
+  type UsageMetadata,
+  // AIMessage
+} from '@langchain/core/messages';
 import { z } from 'zod';
 import { AgentCardResponse } from './types';
+import { AiUsageEventModelAction } from '../ai-usage/actions/ai-usage-event.action';
+import { AiUsageEventType } from '../../common/enums/ai-usage-event-type.enum';
+import { noTransaction } from '../../common/constants/transaction-options';
 
 @Injectable()
 export class AgentService {
@@ -30,6 +38,7 @@ export class AgentService {
     systemInsightsReader: SystemInsightsReader,
     @Inject(chatbotConfig.KEY)
     chatBotCfg: ConfigType<typeof chatbotConfig>,
+    private readonly aiUsageAction: AiUsageEventModelAction,
   ) {
     this.model = new ChatGoogleGenerativeAI({
       model: 'gemini-3.5-flash',
@@ -42,10 +51,41 @@ export class AgentService {
     this.systemInsightsReader = systemInsightsReader;
   }
 
+  // ── Token logging ────────────────────────────────────────────────────────────
+
+  /**
+   * Fire-and-forget usage event write.
+   * Never awaited — a failure here must never surface to the caller.
+   */
+  private logUsage(
+    userId: string,
+    eventType: AiUsageEventType,
+    usage: UsageMetadata,
+    chatId?: string,
+  ): void {
+    void this.aiUsageAction
+      .create({
+        ...noTransaction(),
+        createPayload: {
+          userId,
+          chatId: chatId ?? null,
+          eventType,
+          inputTokens: usage.input_tokens,
+          outputTokens: usage.output_tokens,
+          totalTokens: usage.total_tokens,
+        },
+      })
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`Failed to log AI usage event: ${msg}`);
+      });
+  }
+
   async invokeWithHistory(
     messages: Message[],
     userId: string,
     preferredLanguage?: string,
+    chatId?: string,
   ) {
     // Build a readable conversation history from all messages except the last one.
     // This gets injected into the system prompt so the agent has context without
@@ -80,6 +120,27 @@ export class AgentService {
       { recursionLimit: 10 },
     );
     const msgs = response.messages;
+
+    // The ReAct agent makes one model call per reasoning step (including tool
+    // calls), so there may be more than one AIMessage in the response.
+    // Sum usage across all of them to capture the full cost of the turn.
+    const totalUsage = msgs.filter(isAIMessage).reduce<UsageMetadata>(
+      (acc, msg) => {
+        const u = msg.usage_metadata;
+        if (!u) return acc;
+        return {
+          input_tokens: acc.input_tokens + u.input_tokens,
+          output_tokens: acc.output_tokens + u.output_tokens,
+          total_tokens: acc.total_tokens + u.total_tokens,
+        };
+      },
+      { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
+    );
+
+    if (totalUsage.total_tokens > 0) {
+      this.logUsage(userId, AiUsageEventType.CHAT_MESSAGE, totalUsage, chatId);
+    }
+
     return msgs[msgs.length - 1].content;
   }
 
@@ -97,6 +158,7 @@ export class AgentService {
     userId: string,
     onToken: (chunk: string) => void,
     preferredLanguage?: string,
+    chatId?: string,
   ): Promise<string> {
     const historyLines = messages
       .slice(0, -1)
@@ -126,6 +188,11 @@ export class AgentService {
     );
 
     let fullContent = '';
+    // For a ReAct agent, streamMode:'messages' emits one model_request node
+    // per reasoning step (initial response + one per tool call round-trip).
+    // Each node's final chunk carries the cumulative usage for that model call.
+    // We log one event per node so every model call is captured independently.
+    let currentNodeUsage: UsageMetadata | null = null;
 
     try {
       const stream = await agent.stream(
@@ -134,7 +201,22 @@ export class AgentService {
       );
 
       for await (const [message, metadata] of stream) {
-        if (metadata?.langgraph_node !== 'model_request') continue;
+        const isModelNode = metadata?.langgraph_node === 'model_request';
+
+        // When the node label changes, the previous node has finished.
+        // Flush its accumulated usage as a single event before resetting.
+        if (!isModelNode) {
+          if (currentNodeUsage && currentNodeUsage.total_tokens > 0) {
+            this.logUsage(
+              userId,
+              AiUsageEventType.CHAT_MESSAGE,
+              currentNodeUsage,
+              chatId,
+            );
+            currentNodeUsage = null;
+          }
+          continue;
+        }
 
         if (
           message.content &&
@@ -144,7 +226,26 @@ export class AgentService {
           fullContent += message.content;
           onToken(message.content);
         }
-        // Tool-call chunks from the agent node have no text content — skip them.
+
+        // Gemini emits cumulative usage totals per chunk within a node.
+        // Keep overwriting so we always hold the latest (highest) value
+        // for the current node's model call.
+        const maybeUsage = (message as unknown as Record<string, unknown>)[
+          'usage_metadata'
+        ];
+        if (maybeUsage && typeof maybeUsage === 'object') {
+          currentNodeUsage = maybeUsage as UsageMetadata;
+        }
+      }
+
+      // Flush the final node's usage after the stream closes.
+      if (currentNodeUsage && currentNodeUsage.total_tokens > 0) {
+        this.logUsage(
+          userId,
+          AiUsageEventType.CHAT_MESSAGE,
+          currentNodeUsage,
+          chatId,
+        );
       }
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : 'Unknown error';
@@ -173,7 +274,11 @@ export class AgentService {
    * Generates a short title (3–6 words) for a chat based on the user's first message.
    * Returns null if generation fails — callers should handle that gracefully.
    */
-  async generateChatTitle(firstUserMessage: string): Promise<string | null> {
+  async generateChatTitle(
+    firstUserMessage: string,
+    userId: string,
+    chatId?: string,
+  ): Promise<string | null> {
     try {
       const titlePrompt =
         `You are a chat title generator. Given the user's first message, produce a short title ` +
@@ -183,6 +288,16 @@ export class AgentService {
       const response = await this.model.invoke([
         { role: 'user', content: titlePrompt },
       ]);
+
+      if (response.usage_metadata) {
+        this.logUsage(
+          userId,
+          AiUsageEventType.TITLE_GENERATION,
+          response.usage_metadata,
+          chatId,
+        );
+      }
+
       const title =
         typeof response.content === 'string'
           ? response.content.trim()
@@ -208,7 +323,9 @@ export class AgentService {
   async generateCards(
     userMessage: string,
     agentResponse: string,
+    userId: string,
     preferredLanguage?: string,
+    chatId?: string,
   ): Promise<AgentCardResponse | null> {
     try {
       const cardSchema = z.object({
@@ -227,13 +344,18 @@ export class AgentService {
         ),
       });
 
-      const structuredModel = this.model.withStructuredOutput(cardSchema);
+      // includeRaw: true makes withStructuredOutput return { raw, parsed }.
+      // raw is the AIMessage from the model (carries usage_metadata).
+      // parsed is the Zod-validated cards object.
+      const structuredModel = this.model.withStructuredOutput(cardSchema, {
+        includeRaw: true,
+      });
 
       const languageInstruction = preferredLanguage
         ? ` All card titles and content MUST be written in ${preferredLanguage}.`
         : '';
 
-      const result = await structuredModel.invoke([
+      const { raw, parsed } = await structuredModel.invoke([
         {
           role: 'system',
           content:
@@ -257,7 +379,18 @@ export class AgentService {
         },
       ]);
 
-      return result.cards.length > 0 ? result : null;
+      if ((raw as unknown as Record<string, unknown>)['usage_metadata']) {
+        this.logUsage(
+          userId,
+          AiUsageEventType.CARD_GENERATION,
+          (raw as unknown as Record<string, unknown>)[
+            'usage_metadata'
+          ] as UsageMetadata,
+          chatId,
+        );
+      }
+
+      return parsed.cards.length > 0 ? parsed : null;
     } catch {
       // Card generation is best-effort — never surface errors to the caller
       return null;

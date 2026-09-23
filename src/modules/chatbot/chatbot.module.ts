@@ -16,6 +16,7 @@ import { SystemInsightsReader } from './agent-tools/system-insights-reader';
 import { AlertsModule } from '../alerts/alerts.module';
 import { InvertersMetricsModule } from '../inverters-metrics/inverters-metrics.module';
 import { InvertersModule } from '../inverters/inverters.module';
+import { AiUsageModule } from '../ai-usage/ai-usage.module';
 
 @Module({
   providers: [
@@ -31,6 +32,7 @@ import { InvertersModule } from '../inverters/inverters.module';
   ],
   controllers: [ChatController],
   imports: [
+    AiUsageModule,
     AlertsModule,
     InvertersMetricsModule,
     InvertersModule,

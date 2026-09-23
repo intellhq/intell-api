@@ -8,10 +8,12 @@ import { FeedbackModule } from '../feedback/feedback.module';
 import { OnboardingLeadsModule } from '../onboarding-leads/onboarding-leads.module';
 import { UsersModule } from '../users/users.module';
 import { InstallersModule } from '../installers/installers.module';
+import { AiUsageModule } from '../ai-usage/ai-usage.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User]),
+    AiUsageModule,
     FeedbackModule,
     OnboardingLeadsModule,
     UsersModule,

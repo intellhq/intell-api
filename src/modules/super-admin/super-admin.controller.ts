@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -50,7 +52,9 @@ export class SuperAdminController {
   }
 
   @Get('dashboard/ai-usage-chart')
-  getAiUsageChart() {}
+  getAiUsageChart(@Query() query: UsersChartQueryDto) {
+    return this.superAdminService.getAiUsageChart(query);
+  }
 
   @Get('dashboard/recent-users')
   getRecentUsers(@Query() pagination: PaginationDto) {
@@ -86,7 +90,11 @@ export class SuperAdminController {
   }
 
   @Get('admins/activity')
-  getAdminActivity() {}
+  @HttpCode(HttpStatus.NOT_IMPLEMENTED)
+  getAdminActivity() {
+    // admin_activity_logs table not yet built — tracked as an open item.
+    return { message: 'Admin activity log is not yet implemented.' };
+  }
 
   // ── Users ────────────────────────────────────────────────────────────────────
 

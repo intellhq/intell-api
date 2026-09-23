@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InstallersService } from './installers.service';
-import { CreateAssignmentDto } from './dto/create-assignment.dto';
+import { CreateAssignmentBodyDto } from './dto/create-assignment.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Installers')
@@ -48,7 +48,7 @@ export class InstallersController {
   @ApiOperation({ summary: 'Assign an installer to an inverter' })
   createAssignment(
     @Param('id', ParseUUIDPipe) inverterId: string,
-    @Body() dto: CreateAssignmentDto,
+    @Body() dto: CreateAssignmentBodyDto,
     @CurrentUser('sub') userId: string,
   ) {
     // Bind inverterId from the route param so the caller cannot target a
