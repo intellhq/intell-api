@@ -23,6 +23,10 @@ import { UpdateAdminStatusDto } from '../users/dto/update-admin-status.dto';
 import { QueryInstallersDto } from '../installers/dto/query-installers.dto';
 import { UpdateInstallerStatusDto } from '../installers/dto/update-installer-status.dto';
 import { CreateInstallerProfileDto } from '../installers/dto/create-installer-profile.dto';
+import {
+  ChartPeriod,
+  UsersChartQueryDto,
+} from './dto/users-chart-query.dto';
 
 @Injectable()
 export class SuperAdminService {
@@ -77,6 +81,16 @@ export class SuperAdminService {
       // NOTE: aiUsage requires an ai_usage_events table — not yet implemented
       aiUsage: null,
     };
+  }
+
+  async getUsersChart(query: UsersChartQueryDto) {
+    const period = query.period ?? ChartPeriod.MONTHLY;
+    const points = await this.subscriptionAction.getPlanCountsByPeriod(
+      period,
+      query.startDate,
+      query.endDate,
+    );
+    return { period, points };
   }
 
   async getRecentUsers(pagination: PaginationDto) {
