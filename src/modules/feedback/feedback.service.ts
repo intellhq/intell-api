@@ -76,24 +76,31 @@ export class FeedbackService {
   findAll(query: QueryFeedbackDto) {
     const where: FindOptionsWhere<Feedback>[] = [];
 
+    // Adjust a date-only endDate string (e.g. "2026-09-23") to the very end
+    // of that UTC day so records created throughout the day are included.
+    // Values that already carry a time component are unaffected because
+    // setUTCHours on a full ISO timestamp simply overwrites the time portion.
+    let endBound: Date | undefined;
+    if (query.endDate) {
+      endBound = new Date(query.endDate);
+      endBound.setUTCHours(23, 59, 59, 999);
+    }
+
     const base: FindOptionsWhere<Feedback> = {
       ...(query.status && { status: query.status }),
       ...(query.priority && { priority: query.priority }),
       ...(query.category && { category: ILike(`%${query.category}%`) }),
       ...(query.startDate &&
-        query.endDate && {
-          createdAt: Between(
-            new Date(query.startDate),
-            new Date(query.endDate),
-          ),
+        endBound && {
+          createdAt: Between(new Date(query.startDate), endBound),
         }),
       ...(query.startDate &&
-        !query.endDate && {
+        !endBound && {
           createdAt: MoreThanOrEqual(new Date(query.startDate)),
         }),
       ...(!query.startDate &&
-        query.endDate && {
-          createdAt: LessThanOrEqual(new Date(query.endDate)),
+        endBound && {
+          createdAt: LessThanOrEqual(endBound),
         }),
     };
 

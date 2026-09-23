@@ -32,13 +32,13 @@ export class CreateInstallerProfileDto {
   @IsOptional()
   @IsString()
   @MinLength(1)
-  @MaxLength(20)
+  @MaxLength(255)
   companyName?: string;
 
   @ApiProperty({ example: 'Habibat' })
   @IsString()
   @MinLength(1)
-  @MaxLength(20)
+  @MaxLength(255)
   contactName: string;
 
   @ApiProperty({ example: 'Habibat@gmail.com' })

@@ -186,9 +186,11 @@ export class AgentService {
     );
 
     let fullContent = '';
-    // Gemini streams cumulative usage totals on each chunk — track the last
-    // non-null value so we have the final totals once the stream ends.
-    let lastUsage: UsageMetadata | null = null;
+    // For a ReAct agent, streamMode:'messages' emits one model_request node
+    // per reasoning step (initial response + one per tool call round-trip).
+    // Each node's final chunk carries the cumulative usage for that model call.
+    // We log one event per node so every model call is captured independently.
+    let currentNodeUsage: UsageMetadata | null = null;
 
     try {
       const stream = await agent.stream(
@@ -197,7 +199,22 @@ export class AgentService {
       );
 
       for await (const [message, metadata] of stream) {
-        if (metadata?.langgraph_node !== 'model_request') continue;
+        const isModelNode = metadata?.langgraph_node === 'model_request';
+
+        // When the node label changes, the previous node has finished.
+        // Flush its accumulated usage as a single event before resetting.
+        if (!isModelNode) {
+          if (currentNodeUsage && currentNodeUsage.total_tokens > 0) {
+            this.logUsage(
+              userId,
+              AiUsageEventType.CHAT_MESSAGE,
+              currentNodeUsage,
+              chatId,
+            );
+            currentNodeUsage = null;
+          }
+          continue;
+        }
 
         if (
           message.content &&
@@ -208,15 +225,25 @@ export class AgentService {
           onToken(message.content);
         }
 
-        // Capture the most recent usage metadata — each chunk carries the
-        // running cumulative total, so the last one is the final cost.
-        // The stream yields BaseMessage but Gemini populates usage_metadata
-        // on AIMessageChunk instances — check the property defensively.
-        const maybeUsage = (message as unknown as Record<string, unknown>)['usage_metadata'];
+        // Gemini emits cumulative usage totals per chunk within a node.
+        // Keep overwriting so we always hold the latest (highest) value
+        // for the current node's model call.
+        const maybeUsage = (message as unknown as Record<string, unknown>)[
+          'usage_metadata'
+        ];
         if (maybeUsage && typeof maybeUsage === 'object') {
-          lastUsage = maybeUsage as UsageMetadata;
+          currentNodeUsage = maybeUsage as UsageMetadata;
         }
-        // Tool-call chunks from the agent node have no text content — skip them.
+      }
+
+      // Flush the final node's usage after the stream closes.
+      if (currentNodeUsage && currentNodeUsage.total_tokens > 0) {
+        this.logUsage(
+          userId,
+          AiUsageEventType.CHAT_MESSAGE,
+          currentNodeUsage,
+          chatId,
+        );
       }
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : 'Unknown error';
@@ -227,10 +254,6 @@ export class AgentService {
           'Sorry, something went wrong on my end. Please try again.';
         onToken(fullContent);
       }
-    }
-
-    if (lastUsage && lastUsage.total_tokens > 0) {
-      this.logUsage(userId, AiUsageEventType.CHAT_MESSAGE, lastUsage, chatId);
     }
 
     return fullContent;
@@ -319,13 +342,18 @@ export class AgentService {
         ),
       });
 
-      const structuredModel = this.model.withStructuredOutput(cardSchema);
+      // includeRaw: true makes withStructuredOutput return { raw, parsed }.
+      // raw is the AIMessage from the model (carries usage_metadata).
+      // parsed is the Zod-validated cards object.
+      const structuredModel = this.model.withStructuredOutput(cardSchema, {
+        includeRaw: true,
+      });
 
       const languageInstruction = preferredLanguage
         ? ` All card titles and content MUST be written in ${preferredLanguage}.`
         : '';
 
-      const result = await structuredModel.invoke([
+      const { raw, parsed } = await structuredModel.invoke([
         {
           role: 'system',
           content:
@@ -349,24 +377,18 @@ export class AgentService {
         },
       ]);
 
-      // withStructuredOutput wraps the model — usage comes back on the raw
-      // response via llmOutput. Access it through the underlying AIMessage
-      // by invoking the base model directly for the usage data.
-      // Simpler: invoke the base model with the same messages and capture usage,
-      // but that doubles the API call. Instead we use a type assertion here
-      // because the structured model passes usage_metadata through on the
-      // intermediate AIMessage before parsing.
-      const rawResult = result as unknown as { usage_metadata?: UsageMetadata };
-      if (rawResult.usage_metadata) {
+      if ((raw as unknown as Record<string, unknown>)['usage_metadata']) {
         this.logUsage(
           userId,
           AiUsageEventType.CARD_GENERATION,
-          rawResult.usage_metadata,
+          (raw as unknown as Record<string, unknown>)[
+            'usage_metadata'
+          ] as UsageMetadata,
           chatId,
         );
       }
 
-      return result.cards.length > 0 ? result : null;
+      return parsed.cards.length > 0 ? parsed : null;
     } catch {
       // Card generation is best-effort — never surface errors to the caller
       return null;

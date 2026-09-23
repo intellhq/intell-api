@@ -78,8 +78,8 @@ export class AiUsageEventModelAction extends AbstractModelAction<AiUsageEvent> {
     const sql = `
       SELECT
         TO_CHAR(DATE_TRUNC('${trunc}', e.created_at), ${labelFmt}) AS label,
-        COALESCE(SUM(e.input_tokens), 0)::int                      AS "inputTokens",
-        COALESCE(SUM(e.output_tokens), 0)::int                     AS "outputTokens"
+        COALESCE(SUM(e.input_tokens), 0)                      AS "inputTokens",
+        COALESCE(SUM(e.output_tokens), 0)                     AS "outputTokens"
       FROM ai_usage_events e
       WHERE
         e.deleted_at IS NULL

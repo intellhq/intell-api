@@ -14,19 +14,21 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 
 export class QueryInstallersDto {
   @ApiProperty({ example: 1 })
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   page?: number;
 
   @ApiProperty({ example: 10 })
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
-  @Min(10)
+  @Min(1)
   @Max(100)
   limit?: number;
 
