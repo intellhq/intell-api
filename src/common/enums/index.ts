@@ -1,4 +1,5 @@
 export * from './admin-status.enum';
+export * from './ai-usage-event-type.enum';
 export * from './alert-type';
 export * from './assignment-role.enum';
 export * from './assignment-status.enum';
