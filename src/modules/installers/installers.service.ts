@@ -159,6 +159,15 @@ export class InstallersService {
     const user = await this.usersService.findOne(dto.userId);
     if (!user) throw new NotFoundException(SYS_MSG.NOT_FOUND);
 
+    // Refuse to overwrite a privileged role — only USER or INSTALLER accounts
+    // may be promoted to the INSTALLER role.
+    const promotableRoles: UserRole[] = [UserRole.USER, UserRole.INSTALLER];
+    if (!promotableRoles.includes(user.role)) {
+      throw new ConflictException(
+        'This account has a privileged role and cannot be assigned an installer profile.',
+      );
+    }
+
     // One profile per user
     const existing = await this.findProfileByUserId(dto.userId);
     if (existing) throw new ConflictException(SYS_MSG.CONFLICT);
@@ -289,12 +298,13 @@ export class InstallersService {
     await queryRunner.startTransaction();
 
     try {
-      // Acquire a pessimistic read lock on the profile so this transaction
-      // blocks until any concurrent suspension transaction releases its
-      // write lock, preventing assignment insertion during suspension.
+      // Acquire a pessimistic write lock on the profile so concurrent
+      // createAssignment calls for the same profile are serialized, and so
+      // this transaction blocks against any concurrent suspension transaction
+      // that also holds a write lock on the profile row.
       const profile = await queryRunner.manager
         .createQueryBuilder(InstallerProfile, 'p')
-        .setLock('pessimistic_read')
+        .setLock('pessimistic_write')
         .where('p.id = :id', { id: dto.installerProfileId })
         .getOne();
 
@@ -351,11 +361,20 @@ export class InstallersService {
   async revokeAssignment(
     assignmentId: string,
     requestingUserId: string,
+    expectedInverterId?: string,
   ): Promise<InverterAssignment> {
     const assignment = await this.assignmentAction.get({
       identifierOptions: { id: assignmentId },
     });
     if (!assignment) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+
+    // Reject if the assignment does not belong to the inverter named in the URL
+    if (
+      expectedInverterId !== undefined &&
+      assignment.inverterId !== expectedInverterId
+    ) {
+      throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    }
 
     // Only the inverter owner can revoke
     const inverter = await this.invertersService.findOne(assignment.inverterId);

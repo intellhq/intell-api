@@ -28,6 +28,8 @@ import { UpdateAdminRoleDto } from '../users/dto/update-admin-role.dto';
 import { UpdateAdminStatusDto } from '../users/dto/update-admin-status.dto';
 import { QueryInstallersDto } from '../installers/dto/query-installers.dto';
 import { UpdateInstallerStatusDto } from '../installers/dto/update-installer-status.dto';
+import { CreateInstallerProfileDto } from '../installers/dto/create-installer-profile.dto';
+import { UsersChartQueryDto } from './dto/users-chart-query.dto';
 
 @ApiTags('Super Admin')
 @ApiBearerAuth()
@@ -43,7 +45,9 @@ export class SuperAdminController {
   }
 
   @Get('dashboard/users-chart')
-  getUsersChart() {}
+  getUsersChart(@Query() query: UsersChartQueryDto) {
+    return this.superAdminService.getUsersChart(query);
+  }
 
   @Get('dashboard/ai-usage-chart')
   getAiUsageChart() {}
@@ -125,6 +129,11 @@ export class SuperAdminController {
     @Body() dto: UpdateInstallerStatusDto,
   ) {
     return this.superAdminService.updateInstallerStatus(id, dto);
+  }
+
+  @Post('installers')
+  createInstaller(@Body() dto: CreateInstallerProfileDto) {
+    return this.superAdminService.createInstallerProfile(dto);
   }
 
   // ── Onboarding leads ────────────────────────────────────────────────────────
