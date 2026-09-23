@@ -23,10 +23,7 @@ import { UpdateAdminStatusDto } from '../users/dto/update-admin-status.dto';
 import { QueryInstallersDto } from '../installers/dto/query-installers.dto';
 import { UpdateInstallerStatusDto } from '../installers/dto/update-installer-status.dto';
 import { CreateInstallerProfileDto } from '../installers/dto/create-installer-profile.dto';
-import {
-  ChartPeriod,
-  UsersChartQueryDto,
-} from './dto/users-chart-query.dto';
+import { ChartPeriod, UsersChartQueryDto } from './dto/users-chart-query.dto';
 
 @Injectable()
 export class SuperAdminService {

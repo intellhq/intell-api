@@ -26,7 +26,9 @@ export class InstallersController {
    *   :id — inverterId
    */
   @Get(':id/assignments')
-  @ApiOperation({ summary: 'List active installer assignments for an inverter' })
+  @ApiOperation({
+    summary: 'List active installer assignments for an inverter',
+  })
   getAssignments(
     @Param('id', ParseUUIDPipe) inverterId: string,
     @CurrentUser('sub') userId: string,
@@ -68,9 +70,14 @@ export class InstallersController {
   @Delete(':id/assignments/:assignmentId')
   @ApiOperation({ summary: 'Revoke an installer assignment' })
   revokeAssignment(
+    @Param('id', ParseUUIDPipe) inverterId: string,
     @Param('assignmentId', ParseUUIDPipe) assignmentId: string,
     @CurrentUser('sub') userId: string,
   ) {
-    return this.installersService.revokeAssignment(assignmentId, userId);
+    return this.installersService.revokeAssignment(
+      assignmentId,
+      userId,
+      inverterId,
+    );
   }
 }

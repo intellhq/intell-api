@@ -95,9 +95,10 @@ export class SubscriptionModelAction extends AbstractModelAction<Subscription> {
       dateFilter += ` AND s.started_at >= $${params.length}`;
     }
     if (endDate) {
-      // Make endDate inclusive by going to end of that day
+      // Make endDate inclusive by going to end of that day in UTC,
+      // matching how DATE_TRUNC operates on the stored timestamptz values.
       const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
+      end.setUTCHours(23, 59, 59, 999);
       params.push(end);
       dateFilter += ` AND s.started_at <= $${params.length}`;
     }
@@ -112,7 +113,7 @@ export class SubscriptionModelAction extends AbstractModelAction<Subscription> {
           user_id,
           plan,
           DATE_TRUNC('${trunc}', started_at) AS bucket
-        FROM subscriptions
+        FROM subscriptions s
         WHERE
           status = $1
           AND deleted_at IS NULL
@@ -124,11 +125,11 @@ export class SubscriptionModelAction extends AbstractModelAction<Subscription> {
       ORDER BY bucket ASC
     `;
 
-    const rows = await this.repository.query(sql, params) as Array<{
-      label: string;
-      free: number;
-      paid: number;
-    }>;
+    type ChartRow = { label: string; free: number; paid: number };
+    const rows = (await this.repository.query(
+      sql,
+      params,
+    )) as unknown as ChartRow[];
 
     return rows.map((r) => ({
       label: r.label,
