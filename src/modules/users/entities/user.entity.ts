@@ -1,8 +1,10 @@
 import { Exclude } from 'class-transformer';
 import { Column, Entity, OneToOne } from 'typeorm';
 import { AbstractBaseEntity } from '../../../database/entities/abstract-base.entity';
+import { AdminStatus } from '../../../common/enums/admin-status.enum';
 import { UserRole } from '../../../common/enums';
 import { UserSettings } from './user-settings.entity';
+import { ProfileImage } from './profile-img.entity';
 
 @Entity('users')
 export class User extends AbstractBaseEntity {
@@ -35,6 +37,9 @@ export class User extends AbstractBaseEntity {
   onboardingComplete: boolean;
 
   @Column({ type: 'boolean', default: false })
+  isInvitedUser: boolean;
+
+  @Column({ type: 'boolean', default: false })
   isActive: boolean;
 
   @Column({ type: 'timestamptz', nullable: true })
@@ -43,17 +48,20 @@ export class User extends AbstractBaseEntity {
   @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
   role: UserRole;
 
+  @Column({
+    type: 'enum',
+    enum: AdminStatus,
+    nullable: true,
+    default: null,
+  })
+  adminStatus: AdminStatus | null;
+
   @Column({ type: 'varchar', length: 20, nullable: true })
   phoneNumber?: string;
 
-  @Exclude()
-  @Column({
-    type: 'varchar',
-    length: 500,
-    nullable: true,
-  })
-  refreshTokenHash: string | null;
-
   @OneToOne(() => UserSettings, (settings) => settings.user)
   settings: UserSettings;
+
+  @OneToOne(() => ProfileImage, (img) => img.user)
+  profileImage: ProfileImage;
 }

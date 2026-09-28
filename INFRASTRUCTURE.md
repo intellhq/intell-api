@@ -2,7 +2,7 @@
 
 > **Audience:** New DevOps engineers onboarding to the project
 > **Last Updated:** May 2026
-> **Application:** Energy IQ
+> **Application:** Intell
 ---
 
 ## Table of Contents
@@ -322,7 +322,9 @@ sudo certbot --nginx -d <your-domain.com>
 
 ## 9. Environment Variables
 
-Environment variables live in `shared/.env` for each environment. They are **never** committed to the repository and are **never** stored inside a release folder directly — each release gets a symlink to the shared file.
+Environment variables live in `shared/.env` for each environment. They are **never** committed to the 
+repository and are **never** stored inside a release folder directly — each release gets a symlink to
+the shared file.
 
 ### Locations
 

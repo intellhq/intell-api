@@ -1,0 +1,39 @@
+import { forwardRef, Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { InvertersModule } from '../inverters/inverters.module';
+import { Report } from './entities/report.entity';
+import { ReportsController } from './reports.controller';
+import { ReportsService } from './reports.service';
+import { ReportProcessor } from './reports.processor';
+import { ReportsCron } from './reports.cron';
+import { BullModule } from '@nestjs/bullmq';
+import { QUEUES } from '../../common/constants/queue';
+import { UsersModule } from '../users/users.module';
+import { InvertersMetricsModule } from '../inverters-metrics/inverters-metrics.module';
+import { AlertsModule } from '../alerts/alerts.module';
+import { ReportModelAction } from './action/report.action';
+import { EmailModule } from '../email/email.module';
+import { UploadedReportModelAction } from './action/uploaded-report.action';
+import { UploadedReport } from './entities/uploaded-report.entity';
+
+@Module({
+  imports: [
+    TypeOrmModule.forFeature([Report, UploadedReport]),
+    BullModule.registerQueue({ name: QUEUES.REPORT_DISPATCH }),
+    forwardRef(() => InvertersModule),
+    forwardRef(() => UsersModule),
+    InvertersMetricsModule,
+    AlertsModule,
+    forwardRef(() => EmailModule),
+  ],
+  controllers: [ReportsController],
+  providers: [
+    ReportsService,
+    ReportProcessor,
+    ReportsCron,
+    ReportModelAction,
+    UploadedReportModelAction,
+  ],
+  exports: [ReportModelAction, ReportsService, UploadedReportModelAction],
+})
+export class ReportsModule {}

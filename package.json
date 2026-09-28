@@ -1,5 +1,5 @@
 {
-  "name": "energy-iq-be",
+  "name": "intell-api",
   "version": "1.0.0",
   "description": "AI-powered energy management platform API for Nigerian SMEs and African businessesAI-powered energy management platform API for Nigerian SMEs and African businesses",
   "author": "",
@@ -66,12 +66,16 @@
     "@nestjs/typeorm": "^11.0.1",
     "@nestjs/websockets": "^11.1.20",
     "@t3-oss/env-core": "^0.13.11",
+    "@types/pdfmake": "^0.3.3",
     "bcrypt": "^6.0.0",
     "bullmq": "^5.76.8",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "cloudinary": "^2.10.0",
     "compression": "^1.8.1",
+    "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.2",
+    "firebase-admin": "^14.1.0",
     "google-auth-library": "^10.6.2",
     "handlebars": "^4.7.9",
     "helmet": "^8.1.0",
@@ -81,6 +85,7 @@
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "passport-jwt": "^4.0.1",
+    "pdfmake": "^0.3.11",
     "pg": "^8.20.0",
     "reflect-metadata": "^0.2.2",
     "resend": "^6.12.3",
@@ -102,9 +107,11 @@
     "@nestjs/testing": "^11.1.19",
     "@types/bcrypt": "^6.0.0",
     "@types/compression": "^1.8.1",
+    "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
     "@types/ms": "^2.1.0",
+    "@types/multer": "^2.1.0",
     "@types/node": "^25.6.0",
     "@types/passport-google-oauth20": "^2.0.17",
     "@types/passport-jwt": "^4.0.1",
@@ -134,15 +141,6 @@
       "prettier --write",
       "eslint --fix"
     ]
-  },
-  "pnpm": {
-    "overrides": {
-      "typeorm": "0.3.28",
-      "ws": "8.20.1",
-      "axios": "1.16.1",
-      "follow-redirects": "1.16.0",
-      "uuid": "11.1.1"
-    }
   },
   "jest": {
     "moduleFileExtensions": [

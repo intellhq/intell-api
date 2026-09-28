@@ -1,6 +1,6 @@
-# Bug Report Log — EnergyIQ QA Regression
+# Bug Report Log — Intell QA Regression
 
-**Project**: EnergyIQ  
+**Project**: Intell  
 **Sprint**: Final Regression  
 **Reported By**: QA Team  
 **Date**: June 2, 2026  

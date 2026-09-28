@@ -13,6 +13,7 @@ import { Logtail } from '@logtail/node';
 import * as winston from 'winston';
 import { LogtailTransport } from '@logtail/winston';
 import { WinstonModule } from 'nest-winston';
+import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   // create logtail client
@@ -61,6 +62,7 @@ async function bootstrap() {
     origin: env.CORS_ORIGIN === '*' ? true : env.CORS_ORIGIN.split(','),
     credentials: true,
   });
+  app.use(cookieParser());
   app.enableVersioning({
     type: VersioningType.URI,
     prefix: 'v',
@@ -77,7 +79,7 @@ async function bootstrap() {
       readFileSync(resolve(process.cwd(), 'package.json'), 'utf-8'),
     ) as { version: string };
     const config = new DocumentBuilder()
-      .setTitle('Energy IQ API')
+      .setTitle('Intell API')
       .setDescription(
         'AI-powered energy management platform API for Nigerian SMEs and African businesses',
       )
@@ -99,7 +101,7 @@ async function bootstrap() {
 
   const logger = winstonLogger;
   logger.log({
-    message: 'Energy IQ API is running on http://localhost:' + env.PORT,
+    message: 'Intell API is running on http://localhost:' + env.PORT,
     port: env.PORT,
     host: env.HOST,
     environment: env.NODE_ENV,
