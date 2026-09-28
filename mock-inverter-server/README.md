@@ -17,9 +17,9 @@ Each device has its own access token, Victron user ID, and installation ID. Regi
 
 | Token | Installation ID | Name | Panel Capacity | Notes |
 |---|---|---|---|---|
-| `mock-token-a` | `100001` | EnergyIQ Test Site A | 5 kW | Healthy device |
-| `mock-token-b` | `100002` | EnergyIQ Test Site B | 3 kW | Moderate load |
-| `mock-token-c` | `100003` | EnergyIQ Test Site C | 4 kW | Starts with low SOC — triggers RED health |
+| `mock-token-a` | `100001` | Intell Test Site A | 5 kW | Healthy device |
+| `mock-token-b` | `100002` | Intell Test Site B | 3 kW | Moderate load |
+| `mock-token-c` | `100003` | Intell Test Site C | 4 kW | Starts with low SOC — triggers RED health |
 
 ## Setup
 

@@ -2,7 +2,7 @@
 
 > **Audience:** New DevOps engineers onboarding to the project
 > **Last Updated:** May 2026
-> **Application:** Energy IQ
+> **Application:** Intell
 ---
 
 ## Table of Contents

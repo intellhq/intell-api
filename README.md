@@ -1,10 +1,9 @@
-# EnergyIQ Backend
+# INTELL Backend
 
-EnergyIQ is an AI-powered energy management platform for Nigerian SMEs and African businesses. This repository contains the NestJS API that powers authentication, user management, health checks, and t
+Intell is an AI-powered energy management platform for Nigerian SMEs and African businesses. This repository contains the NestJS API that powers authentication, user management, health checks, and t
 
-## Live URLs:
-- [Staging](https://api.staging.energy-iq.hng14.com/api/docs)
-- [Production](https://api.energy-iq.hng14.com/api/docs)
+## Live URL:
+- [Staging](https://api.intell.ng/api/docs)
 
 ## What this service provides
 

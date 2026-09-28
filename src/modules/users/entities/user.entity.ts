@@ -1,6 +1,7 @@
 import { Exclude } from 'class-transformer';
 import { Column, Entity, OneToOne } from 'typeorm';
 import { AbstractBaseEntity } from '../../../database/entities/abstract-base.entity';
+import { AdminStatus } from '../../../common/enums/admin-status.enum';
 import { UserRole } from '../../../common/enums';
 import { UserSettings } from './user-settings.entity';
 import { ProfileImage } from './profile-img.entity';
@@ -46,6 +47,14 @@ export class User extends AbstractBaseEntity {
 
   @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
   role: UserRole;
+
+  @Column({
+    type: 'enum',
+    enum: AdminStatus,
+    nullable: true,
+    default: null,
+  })
+  adminStatus: AdminStatus | null;
 
   @Column({ type: 'varchar', length: 20, nullable: true })
   phoneNumber?: string;

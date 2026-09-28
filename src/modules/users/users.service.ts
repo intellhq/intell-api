@@ -31,6 +31,18 @@ import { ProfileImageModelAction } from './actions/profile-img.action';
 import { Session } from './entities/sessions.entity';
 import { SessionModelAction } from './actions/sessions.action';
 import { CreateSessionDto } from '../auth/dto/create-session.dto';
+import { AdminStatus } from '../../common/enums/admin-status.enum';
+import { SubscriptionStatus } from '../../common/enums/subscription-status.enum';
+import { UserRole } from '../../common/enums/user-role';
+import { CreateAdminDto } from './dto/create-admin.dto';
+import { QueryAdminUsersDto } from './dto/query-admin-users.dto';
+import {
+  QuerySuperAdminUsersDto,
+  UserStatusFilter,
+} from './dto/query-super-admin-users.dto';
+import { FindOptionsWhere, ILike } from 'typeorm';
+import { SubscriptionModelAction } from './actions/subscription.action';
+import { PromoteUserDto } from './dto/promote-user.dto';
 
 const BCRYPT_ROUNDS = 10;
 const SESSION_ABSOLUTE_MAX_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -45,6 +57,7 @@ export class UsersService {
     private readonly userSettingsModelAction: UserSettingsModelAction,
     private readonly invertersService: InvertersService,
     private readonly sessionModelAction: SessionModelAction,
+    private readonly subscriptionModelAction: SubscriptionModelAction,
   ) {}
 
   private async validateAndHashPassword(dto: CreateUserDto): Promise<string> {
@@ -198,6 +211,22 @@ export class UsersService {
     if (!updated) {
       throw new InternalServerErrorException(SYS_MSG.INTERNAL_SERVER_ERROR);
     }
+    return updated;
+  }
+
+  async promoteUser(id: string, dto: PromoteUserDto): Promise<User> {
+    await this.findOne(id);
+
+    const updated = await this.userModelAction.update({
+      ...noTransaction(),
+      identifierOptions: { id },
+      updatePayload: {
+        role: dto.role,
+      },
+    });
+    if (!updated)
+      throw new InternalServerErrorException(SYS_MSG.INTERNAL_SERVER_ERROR);
+
     return updated;
   }
 
@@ -405,6 +434,32 @@ export class UsersService {
     }
   }
 
+  async createFreeSubscription(userId: string) {
+    const user = await this.findOne(userId);
+    if (!user) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    const existingSub =
+      await this.subscriptionModelAction.getCurrentSubscription(userId);
+    if (existingSub) throw new ConflictException(SYS_MSG.CONFLICT);
+    const sub = await this.subscriptionModelAction.create({
+      ...noTransaction(),
+      createPayload: {
+        userId: user.id,
+        user,
+        startedAt: new Date(),
+      },
+    });
+
+    return sub;
+  }
+
+  async getCurrentSubscription(userId: string) {
+    return await this.subscriptionModelAction.getCurrentSubscription(userId);
+  }
+
+  async getPlanCounts() {
+    return await this.subscriptionModelAction.getPlanCounts();
+  }
+
   /**
    * METHODS FOR UPDATING A USER'S SETTING
    */
@@ -547,5 +602,219 @@ export class UsersService {
 
   async deleteFile(path: string) {
     return await fs.unlink(path);
+  }
+
+  // ── Super-admin: users ───────────────────────────────────────────────────────
+
+  async adminListUsers(query: QuerySuperAdminUsersDto) {
+    type Where = FindOptionsWhere<User>;
+
+    const base: Where = {
+      ...(query.status === UserStatusFilter.ACTIVE && { isActive: true }),
+      ...(query.status === UserStatusFilter.INACTIVE && { isActive: false }),
+      ...(query.status === UserStatusFilter.PENDING && {
+        emailVerified: false,
+      }),
+      ...(query.state && { settings: { state: query.state } }),
+      role: UserRole.USER,
+    };
+
+    // When a plan filter is provided we must join subscriptions, which
+    // FindOptionsWhere cannot express. Drop to a raw QueryBuilder in that case.
+    if (query.plan) {
+      const page = query.page ?? 1;
+      const limit = query.limit ?? 20;
+
+      const qb = this.userModelAction['repository']
+        .createQueryBuilder('u')
+        .leftJoin('u.settings', 'us')
+        .innerJoin(
+          (sub) =>
+            sub
+              .from('subscriptions', 's')
+              .select('DISTINCT ON (s.user_id) s.user_id', 'userId')
+              .addSelect('s.plan', 'plan')
+              .where('s.status = :status', {
+                status: SubscriptionStatus.ACTIVE,
+              })
+              .andWhere('s.deleted_at IS NULL')
+              .orderBy('s.user_id')
+              .addOrderBy('s.started_at', 'DESC'),
+          'active_sub',
+          'active_sub."userId" = u.id',
+        )
+        .where('u.role = :role', { role: UserRole.USER })
+        .andWhere('u.deleted_at IS NULL')
+        .andWhere('active_sub.plan = :plan', { plan: query.plan });
+
+      if (query.status === UserStatusFilter.ACTIVE)
+        qb.andWhere('u.is_active = true');
+      if (query.status === UserStatusFilter.INACTIVE)
+        qb.andWhere('u.is_active = false');
+      if (query.status === UserStatusFilter.PENDING)
+        qb.andWhere('u.email_verified = false');
+
+      if (query.state) qb.andWhere('us.state = :state', { state: query.state });
+
+      if (query.search) {
+        const t = `%${query.search}%`;
+        qb.andWhere(
+          '(u.first_name ILIKE :t OR u.last_name ILIKE :t OR u.email ILIKE :t)',
+          { t },
+        );
+      }
+
+      const total = await qb.getCount();
+      const payload = await qb
+        .orderBy('u.created_at', 'DESC')
+        .skip((page - 1) * limit)
+        .take(limit)
+        .getMany();
+
+      return {
+        payload,
+        paginationMeta: {
+          total,
+          page,
+          limit,
+          hasNext: page * limit < total,
+          hasPrev: page > 1,
+        },
+      };
+    }
+
+    const where: Where[] = [];
+
+    if (query.search) {
+      const t = query.search;
+      where.push(
+        { ...base, firstName: ILike(`%${t}%`) },
+        { ...base, lastName: ILike(`%${t}%`) },
+        { ...base, email: ILike(`%${t}%`) },
+      );
+    } else {
+      where.push(base);
+    }
+
+    return this.userModelAction.list({
+      filterRecordOptions: where,
+      relations: { settings: true },
+      paginationPayload: {
+        page: query.page ?? 1,
+        limit: query.limit ?? 20,
+      },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async adminGetUser(id: string): Promise<User> {
+    const user = await this.userModelAction.get({
+      identifierOptions: { id, role: UserRole.USER },
+    });
+    if (!user) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    return user;
+  }
+
+  async adminToggleUserStatus(id: string, isActive: boolean): Promise<User> {
+    const user = await this.userModelAction.get({
+      identifierOptions: { id, role: UserRole.USER },
+    });
+    if (!user) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    const updated = await this.userModelAction.update({
+      ...noTransaction(),
+      identifierOptions: { id },
+      updatePayload: { isActive },
+    });
+    if (!updated) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    return updated;
+  }
+
+  // ── Super-admin: admins ──────────────────────────────────────────────────────
+
+  async adminListAdmins(query: QueryAdminUsersDto) {
+    const { ILike, In } = await import('typeorm');
+    type Where = import('typeorm').FindOptionsWhere<User>;
+    const base: Where = {
+      role: query.role ?? In([UserRole.ADMIN, UserRole.SUPER_ADMIN]),
+      ...(query.status && { adminStatus: query.status }),
+    };
+
+    const where: Where[] = [];
+
+    if (query.search) {
+      const t = query.search;
+      where.push(
+        { ...base, firstName: ILike(`%${t}%`) },
+        { ...base, lastName: ILike(`%${t}%`) },
+        { ...base, email: ILike(`%${t}%`) },
+      );
+    } else {
+      where.push(base);
+    }
+
+    return this.userModelAction.list({
+      filterRecordOptions: where,
+      paginationPayload: {
+        page: query.page ?? 1,
+        limit: query.limit ?? 20,
+      },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async adminCreateAdmin(dto: CreateAdminDto): Promise<User> {
+    const existing = await this.userModelAction.findByEmail(dto.email);
+    if (existing) throw new ConflictException(SYS_MSG.CONFLICT);
+
+    return this.userModelAction.create({
+      ...noTransaction(),
+      createPayload: {
+        email: dto.email,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        role: dto.role,
+        adminStatus: AdminStatus.INVITED,
+        isActive: false,
+        emailVerified: false,
+        onboardingStep: 1,
+        onboardingComplete: false,
+      },
+    });
+  }
+
+  async adminUpdateAdminRole(id: string, role: UserRole): Promise<User> {
+    const { In } = await import('typeorm');
+    const admin = await this.userModelAction.get({
+      identifierOptions: {
+        id,
+        role: In([UserRole.ADMIN, UserRole.SUPER_ADMIN]),
+      },
+    });
+    if (!admin) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    const updated = await this.userModelAction.update({
+      ...noTransaction(),
+      identifierOptions: { id },
+      updatePayload: { role },
+    });
+    if (!updated) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    return updated;
+  }
+
+  async adminUpdateAdminStatus(id: string, status: AdminStatus): Promise<User> {
+    const { In } = await import('typeorm');
+    const admin = await this.userModelAction.get({
+      identifierOptions: {
+        id,
+        role: In([UserRole.ADMIN, UserRole.SUPER_ADMIN]),
+      },
+    });
+    if (!admin) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    const updated = await this.userModelAction.update({
+      ...noTransaction(),
+      identifierOptions: { id },
+      updatePayload: { adminStatus: status },
+    });
+    if (!updated) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    return updated;
   }
 }

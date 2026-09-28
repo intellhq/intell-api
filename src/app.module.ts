@@ -38,6 +38,11 @@ import { CloudinaryModule } from './common/cloudinary/cloudinary.module';
 import { TeamAccessModule } from './modules/team-access/team-access.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { firebaseConfig } from './config/firebase.config';
+import { SuperAdminModule } from './modules/super-admin/super-admin.module';
+import { OnboardingLeadsModule } from './modules/onboarding-leads/onboarding-leads.module';
+import { FeedbackModule } from './modules/feedback/feedback.module';
+import { RolesGuard } from './common/guards/user-role.guard';
+import { InstallersModule } from './modules/installers/installers.module';
 
 @Module({
   imports: [
@@ -83,6 +88,10 @@ import { firebaseConfig } from './config/firebase.config';
     CloudinaryModule,
     TeamAccessModule,
     NotificationModule,
+    SuperAdminModule,
+    OnboardingLeadsModule,
+    FeedbackModule,
+    InstallersModule,
   ],
   providers: [
     {
@@ -95,6 +104,7 @@ import { firebaseConfig } from './config/firebase.config';
       }),
     },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: AppThrottlerGuard },
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },

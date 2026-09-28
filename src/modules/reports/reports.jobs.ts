@@ -21,6 +21,4 @@ export interface DeleteUploadedReportJobData {
 }
 
 export type ReportJobData =
-  | ComputeReportJobData
-  | SendReportJobData
-  | DeleteUploadedReportJobData;
+  ComputeReportJobData | SendReportJobData | DeleteUploadedReportJobData;

@@ -319,6 +319,7 @@ export class AuthService {
     }
 
     await this.usersService.setEmailVerified(user.id, true);
+    await this.usersService.createFreeSubscription(user.id);
     await this.redis.delete(dto.email, 'otp');
     await this.redis.delete(attemptKey, 'otp_attempts');
 
@@ -575,6 +576,7 @@ export class AuthService {
       sub: user.id,
       email: user.email,
       sessionId: session.id,
+      role: user.role,
       jti: crypto.randomUUID(),
     };
     const accessToken = await this.jwtService.signAsync(payload, {

@@ -37,7 +37,7 @@ describe('WhatsAppDelivery — Test Cases', () => {
     const formatted = formatAlertMessage(alert);
 
     expect(formatted).toContain('🚨');
-    expect(formatted).toContain('Energy IQ Alert');
+    expect(formatted).toContain('Intell Alert');
     expect(formatted).toContain('battery_depletion');
     expect(formatted).toContain('12 min');
     expect(formatted).toContain('Consider reducing load');
@@ -49,7 +49,7 @@ describe('WhatsAppDelivery — Test Cases', () => {
   it('6.2 should call the WhatsApp API with correct recipient and formatted message', async () => {
     const message: WhatsAppMessage = {
       to: '+2348012345678',
-      body: '🚨 Energy IQ Alert\nType: battery_depletion\nBattery at 8%',
+      body: '🚨 Intell Alert\nType: battery_depletion\nBattery at 8%',
       type: 'text',
     };
 
@@ -59,7 +59,7 @@ describe('WhatsAppDelivery — Test Cases', () => {
 
     expect(mockWhatsAppClient.sendMessage).toHaveBeenCalledWith({
       to: '+2348012345678',
-      body: expect.stringContaining('Energy IQ Alert') as string,
+      body: expect.stringContaining('Intell Alert') as string,
       type: 'text',
     });
     expect(result.status).toBe('sent');

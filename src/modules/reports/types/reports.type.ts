@@ -70,13 +70,7 @@ export type GeneralReport = ReportBase & {
 };
 
 export type AnyReport =
-  | AlertReport
-  | SolarReport
-  | CostSavingsReport
-  | GeneralReport;
+  AlertReport | SolarReport | CostSavingsReport | GeneralReport;
 
 export type ReportKeyMetrics =
-  | AlertKeyMetrics
-  | SolarKeyMetrics
-  | CostSavingsKeyMetrics
-  | GeneralKeyMetrics;
+  AlertKeyMetrics | SolarKeyMetrics | CostSavingsKeyMetrics | GeneralKeyMetrics;

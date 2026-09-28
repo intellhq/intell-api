@@ -63,8 +63,8 @@ victronRouter.get('/users/me', (req: Request, res: Response) => {
     success: true,
     record: {
       idUser,
-      name: 'Mock EnergyIQ User',
-      email: `mock-user-${idUser}@energyiq.dev`,
+      name: 'Mock Intell User',
+      email: `mock-user-${idUser}@intell.dev`,
     },
   });
 });
