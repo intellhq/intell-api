@@ -199,6 +199,7 @@ jobs:
           scan-type: fs
           scan-ref: .
           severity: CRITICAL,HIGH
+          limit-severities-for-sarif: true
           exit-code: 1
           format: sarif
           output: trivy-results.sarif
