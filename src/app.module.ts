@@ -6,6 +6,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { appConfig } from './config/app.config';
+import { cloudinaryConfig } from './config/cloudinary.config';
 import { databaseConfig } from './config/database.config';
 import './config/env';
 import { jwtConfig } from './config/jwt.config';
@@ -32,6 +33,16 @@ import { AlertsModule } from './modules/alerts/alerts.module';
 import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 import { whatsAppConfig } from './config/whatsapp.config';
 import { WaitlistModule } from './modules/waitlist/waitlist.module';
+import { ReportsModule } from './modules/reports/reports.module';
+import { CloudinaryModule } from './common/cloudinary/cloudinary.module';
+import { TeamAccessModule } from './modules/team-access/team-access.module';
+import { NotificationModule } from './modules/notification/notification.module';
+import { firebaseConfig } from './config/firebase.config';
+import { SuperAdminModule } from './modules/super-admin/super-admin.module';
+import { OnboardingLeadsModule } from './modules/onboarding-leads/onboarding-leads.module';
+import { FeedbackModule } from './modules/feedback/feedback.module';
+import { RolesGuard } from './common/guards/user-role.guard';
+import { InstallersModule } from './modules/installers/installers.module';
 
 @Module({
   imports: [
@@ -45,6 +56,8 @@ import { WaitlistModule } from './modules/waitlist/waitlist.module';
         redisConfig,
         googleConfig,
         whatsAppConfig,
+        cloudinaryConfig,
+        firebaseConfig,
       ],
     }),
     TypeOrmModule.forRootAsync({
@@ -71,6 +84,14 @@ import { WaitlistModule } from './modules/waitlist/waitlist.module';
     AlertsModule,
     WhatsappModule,
     WaitlistModule,
+    ReportsModule,
+    CloudinaryModule,
+    TeamAccessModule,
+    NotificationModule,
+    SuperAdminModule,
+    OnboardingLeadsModule,
+    FeedbackModule,
+    InstallersModule,
   ],
   providers: [
     {
@@ -83,6 +104,7 @@ import { WaitlistModule } from './modules/waitlist/waitlist.module';
       }),
     },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: AppThrottlerGuard },
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },

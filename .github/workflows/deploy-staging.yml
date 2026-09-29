@@ -97,6 +97,7 @@ jobs:
             set -u
 
             APP_DIR=/opt/backend/staging
+
             DEPLOY_DIR="$APP_DIR/releases/${ARCHIVE%.tar.gz}"
             mkdir -p "$DEPLOY_DIR"
             tar -xzf /tmp/"${ARCHIVE}" -C "${DEPLOY_DIR}"
@@ -185,6 +186,7 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           script: |
             set -e
+
             APP_DIR=/opt/backend/staging
 
             # Revert exactly the migrations this deploy applied

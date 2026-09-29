@@ -37,8 +37,8 @@ export const env = createEnv({
     REDIS_DEFAULT_TTL: z.coerce.number().int().positive().default(900),
 
     RESEND_API_KEY: z.string().min(1),
-    RESEND_FROM: z.email().default('energyiq@hng14.com'),
-    SUPPORT_EMAIL: z.email().default('energyiq@hng14.com'),
+    RESEND_FROM: z.email().default('noreply@intell.ng'),
+    SUPPORT_EMAIL: z.email().default('noreply@intell.ng'),
 
     JWT_ACCESS_SECRET: z
       .string()
@@ -112,6 +112,30 @@ export const env = createEnv({
       .int()
       .positive()
       .transform((v) => Number(v)),
+
+    CLOUDINARY_CLOUD_NAME: z.string().nonoptional(),
+    CLOUDINARY_API_KEY: z.string().nonoptional(),
+    CLOUDINARY_API_SECRET: z.string().nonoptional(),
+    CLOUDINARY_RESOURCE_URL: z.url().default('https://res.cloudinary.com'),
+
+    // # Firebase Admin SDK
+    FIREBASE_PROJECT_ID: z.string().nonoptional(),
+    FIREBASE_CLIENT_EMAIL: z.email(),
+    FIREBASE_PRIVATE_KEY: z
+      .string()
+      .min(50, 'Key too short')
+      .refine(
+        (val) =>
+          val.includes('-----BEGIN RSA PRIVATE KEY-----') ||
+          val.includes('-----BEGIN PRIVATE KEY-----'),
+        { message: 'Invalid RSA private key format. Must be PEM' },
+      )
+      .refine(
+        (val) =>
+          val.includes('-----END RSA PRIVATE KEY-----') ||
+          val.includes('-----END PRIVATE KEY-----'),
+        { message: 'Invalid RSA private key format. Missing END header' },
+      ),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,

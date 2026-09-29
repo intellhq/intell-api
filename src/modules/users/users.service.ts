@@ -2,7 +2,10 @@ import {
   ConflictException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
+  ServiceUnavailableException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { noTransaction } from '../../common/constants/transaction-options';
@@ -20,22 +23,52 @@ import { UserSettingsModelAction } from './actions/user-settings.action';
 import { UpdateUserPersonalSettingsDto } from './dto/update-user-personal-settings.dto';
 import { UserSettings } from './entities/user-settings.entity';
 import { GeneratorFuelType } from '../../common/enums/generator';
+import { UploadProfileImgDto } from './dto/upload-profile-img.dto';
+import fs from 'node:fs/promises';
+import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
+import path from 'node:path';
+import { ProfileImageModelAction } from './actions/profile-img.action';
+import { Session } from './entities/sessions.entity';
+import { SessionModelAction } from './actions/sessions.action';
+import { CreateSessionDto } from '../auth/dto/create-session.dto';
+import { AdminStatus } from '../../common/enums/admin-status.enum';
+import { SubscriptionStatus } from '../../common/enums/subscription-status.enum';
+import { UserRole } from '../../common/enums/user-role';
+import { CreateAdminDto } from './dto/create-admin.dto';
+import { QueryAdminUsersDto } from './dto/query-admin-users.dto';
+import {
+  QuerySuperAdminUsersDto,
+  UserStatusFilter,
+} from './dto/query-super-admin-users.dto';
+import { FindOptionsWhere, ILike } from 'typeorm';
+import { SubscriptionModelAction } from './actions/subscription.action';
+import { PromoteUserDto } from './dto/promote-user.dto';
 
 const BCRYPT_ROUNDS = 10;
+const SESSION_ABSOLUTE_MAX_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
   constructor(
+    private readonly cloudinaryService: CloudinaryService,
+    private readonly profileImageAction: ProfileImageModelAction,
     private readonly userModelAction: UserModelAction,
     private readonly userSettingsModelAction: UserSettingsModelAction,
     private readonly invertersService: InvertersService,
+    private readonly sessionModelAction: SessionModelAction,
+    private readonly subscriptionModelAction: SubscriptionModelAction,
   ) {}
 
-  async create(dto: CreateUserDto): Promise<User> {
+  private async validateAndHashPassword(dto: CreateUserDto): Promise<string> {
     const existing = await this.userModelAction.findByEmail(dto.email);
     if (existing) throw new ConflictException(SYS_MSG.CONFLICT);
 
-    const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+    return await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+  }
+
+  async create(dto: CreateUserDto): Promise<User> {
+    const passwordHash = await this.validateAndHashPassword(dto);
     return this.userModelAction.create({
       ...noTransaction(),
       createPayload: {
@@ -48,6 +81,81 @@ export class UsersService {
         onboardingComplete: false,
       },
     });
+  }
+
+  async createTeamInvitedUser(dto: CreateUserDto): Promise<User> {
+    const passwordHash = await this.validateAndHashPassword(dto);
+    return this.userModelAction.create({
+      ...noTransaction(),
+      createPayload: {
+        email: dto.email,
+        passwordHash,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        role: dto.role,
+        onboardingStep: 2,
+        onboardingComplete: true,
+        isInvitedUser: true,
+        isActive: true,
+        emailVerified: true,
+      },
+    });
+  }
+
+  async createSession(
+    userId: string,
+    dto?: CreateSessionDto,
+  ): Promise<Session> {
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    return this.sessionModelAction.create({
+      ...noTransaction(),
+      createPayload: {
+        userId,
+        ...(dto?.deviceName && { deviceName: dto.deviceName.slice(0, 100) }),
+        ...(dto?.ipAddress && { ipAddress: dto.ipAddress.slice(0, 45) }),
+        ...(dto?.platform && { platform: dto.platform.slice(0, 20) }),
+        ...(dto?.userAgent && { userAgent: dto.userAgent }),
+        expiresAt,
+      },
+    });
+  }
+
+  async findSessionById(sessionId: string): Promise<Session> {
+    const session = await this.sessionModelAction.findById(sessionId);
+    if (!session) throw new UnauthorizedException(SYS_MSG.INVALID_SESSION_ID);
+
+    return this.validateSession(session);
+  }
+
+  async validateSession(session: Session): Promise<Session> {
+    if (!session.isActive)
+      throw new UnauthorizedException(SYS_MSG.SESSION_EXPIRED);
+
+    const now = Date.now();
+
+    // Absolute lifetime cap - sessions cannot outlive 30 days from creation
+    const absoluteExpiry =
+      session.createdAt.getTime() + SESSION_ABSOLUTE_MAX_MS;
+    if (now > absoluteExpiry) {
+      await this.sessionModelAction.update({
+        ...noTransaction(),
+        identifierOptions: { id: session.id },
+        updatePayload: { isActive: false },
+      });
+      throw new UnauthorizedException(SYS_MSG.SESSION_EXPIRED);
+    }
+
+    // Sliding window expiry
+    if (session.expiresAt && now > session.expiresAt.getTime()) {
+      await this.sessionModelAction.update({
+        ...noTransaction(),
+        identifierOptions: { id: session.id },
+        updatePayload: { isActive: false },
+      });
+      throw new UnauthorizedException(SYS_MSG.SESSION_EXPIRED);
+    }
+
+    return session;
   }
 
   async findOrCreateByGoogle(dto: GoogleOAuthDto): Promise<User> {
@@ -106,6 +214,22 @@ export class UsersService {
     return updated;
   }
 
+  async promoteUser(id: string, dto: PromoteUserDto): Promise<User> {
+    await this.findOne(id);
+
+    const updated = await this.userModelAction.update({
+      ...noTransaction(),
+      identifierOptions: { id },
+      updatePayload: {
+        role: dto.role,
+      },
+    });
+    if (!updated)
+      throw new InternalServerErrorException(SYS_MSG.INTERNAL_SERVER_ERROR);
+
+    return updated;
+  }
+
   async updatePasswordHash(id: string, passwordHash: string): Promise<User> {
     await this.findOne(id);
 
@@ -130,12 +254,87 @@ export class UsersService {
     });
   }
 
-  async setRefreshTokenHash(id: string, hash: string | null): Promise<void> {
-    await this.userModelAction.update({
+  async setRefreshTokenHash(
+    sessionId: string,
+    hash: string | null,
+  ): Promise<void> {
+    const updated = await this.sessionModelAction.update({
+      ...noTransaction(),
+      identifierOptions: { id: sessionId },
+      updatePayload: {
+        refreshTokenHash: hash,
+        lastActivityAt: new Date(),
+        ...(hash === null && { isActive: false }),
+        ...(hash !== null && {
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        }),
+      },
+    });
+    if (!updated)
+      throw new InternalServerErrorException(SYS_MSG.SESSION_UPDATE_FAILED);
+  }
+
+  /**
+   * Atomically swaps the refresh token hash only if the current stored hash
+   * matches expectedHash. Returns false if the swap lost the race (another
+   * request already rotated the token), true on success.
+   */
+  async compareAndSwapRefreshToken(
+    sessionId: string,
+    expectedHash: string,
+    newHash: string,
+    createdAt: Date,
+  ): Promise<boolean> {
+    return this.sessionModelAction.compareAndSwapRefreshTokenHash(
+      sessionId,
+      expectedHash,
+      newHash,
+      createdAt,
+    );
+  }
+
+  async deactivateSession(id: string): Promise<void> {
+    const updated = await this.sessionModelAction.update({
       ...noTransaction(),
       identifierOptions: { id },
-      updatePayload: { refreshTokenHash: hash },
+      updatePayload: {
+        isActive: false,
+        refreshTokenHash: null,
+        lastActivityAt: new Date(),
+      },
     });
+    if (!updated) throw new NotFoundException(SYS_MSG.INVALID_SESSION_ID);
+  }
+
+  async getUserDeviceTokens(userId: string): Promise<string[]> {
+    const sessionsResponse = await this.sessionModelAction.find({
+      ...noTransaction(),
+      findOptions: {
+        userId,
+      },
+      paginationPayload: {
+        page: 1,
+        limit: 100,
+      },
+    });
+    const sessions = sessionsResponse.payload;
+    const activeSessionTokens = sessions
+      .map((sess) => sess.deviceToken)
+      .filter((sess) => sess !== undefined);
+
+    return activeSessionTokens;
+  }
+
+  async setDeviceToken(
+    userId: string,
+    sessionId: string,
+    token: string,
+  ): Promise<boolean> {
+    return await this.sessionModelAction.atomicallySwapFid(
+      sessionId,
+      userId,
+      token,
+    );
   }
 
   async setEmailVerified(id: string, emailVerified: boolean): Promise<void> {
@@ -180,6 +379,85 @@ export class UsersService {
         inverterConnected: user.onboardingComplete,
       },
     };
+  }
+
+  async uploadProfileImage(dto: UploadProfileImgDto, userId: string) {
+    const user = await this.findOne(userId);
+    const fileMeta = {
+      filename: dto.file.originalname.toLowerCase(),
+      fileExtname: path.extname(dto.file.originalname).toLowerCase(),
+      filesizeBytes: dto.file.size.toString(),
+      mimeType: dto.file.mimetype,
+    };
+
+    let uploadRes: Awaited<
+      ReturnType<CloudinaryService['signedUploadFileFromMetadata']>
+    > = null;
+
+    try {
+      uploadRes = await this.cloudinaryService.signedUploadFileFromMetadata(
+        'user_profile_images',
+        fileMeta,
+        dto.file.buffer,
+      );
+
+      if (!uploadRes)
+        throw new ServiceUnavailableException(SYS_MSG.ERROR_UPLOADING_FILE);
+
+      const fullImg = {
+        ...uploadRes,
+        user,
+        userId,
+      };
+
+      const profileImage = await this.profileImageAction.upsertUserPorfileImg(
+        userId,
+        fullImg,
+      );
+
+      return profileImage;
+    } catch (err) {
+      if (uploadRes?.cloudinaryPublicId) {
+        await this.cloudinaryService.deleteByPublicId(
+          uploadRes.cloudinaryPublicId,
+        );
+      }
+      this.logger.error(
+        `Failed to upload user image: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      if (err instanceof ServiceUnavailableException) throw err;
+      throw new InternalServerErrorException(SYS_MSG.ERROR_UPLOADING_FILE);
+    } finally {
+      if (dto.file.path) {
+        await this.deleteFile(dto.file.path);
+      }
+    }
+  }
+
+  async createFreeSubscription(userId: string) {
+    const user = await this.findOne(userId);
+    if (!user) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    const existingSub =
+      await this.subscriptionModelAction.getCurrentSubscription(userId);
+    if (existingSub) throw new ConflictException(SYS_MSG.CONFLICT);
+    const sub = await this.subscriptionModelAction.create({
+      ...noTransaction(),
+      createPayload: {
+        userId: user.id,
+        user,
+        startedAt: new Date(),
+      },
+    });
+
+    return sub;
+  }
+
+  async getCurrentSubscription(userId: string) {
+    return await this.subscriptionModelAction.getCurrentSubscription(userId);
+  }
+
+  async getPlanCounts() {
+    return await this.subscriptionModelAction.getPlanCounts();
   }
 
   /**
@@ -320,5 +598,223 @@ export class UsersService {
         .map((f) => f.toLowerCase())
         .includes(t.toLowerCase())
     );
+  }
+
+  async deleteFile(path: string) {
+    return await fs.unlink(path);
+  }
+
+  // ── Super-admin: users ───────────────────────────────────────────────────────
+
+  async adminListUsers(query: QuerySuperAdminUsersDto) {
+    type Where = FindOptionsWhere<User>;
+
+    const base: Where = {
+      ...(query.status === UserStatusFilter.ACTIVE && { isActive: true }),
+      ...(query.status === UserStatusFilter.INACTIVE && { isActive: false }),
+      ...(query.status === UserStatusFilter.PENDING && {
+        emailVerified: false,
+      }),
+      ...(query.state && { settings: { state: query.state } }),
+      role: UserRole.USER,
+    };
+
+    // When a plan filter is provided we must join subscriptions, which
+    // FindOptionsWhere cannot express. Drop to a raw QueryBuilder in that case.
+    if (query.plan) {
+      const page = query.page ?? 1;
+      const limit = query.limit ?? 20;
+
+      const qb = this.userModelAction['repository']
+        .createQueryBuilder('u')
+        .leftJoin('u.settings', 'us')
+        .innerJoin(
+          (sub) =>
+            sub
+              .from('subscriptions', 's')
+              .select('DISTINCT ON (s.user_id) s.user_id', 'userId')
+              .addSelect('s.plan', 'plan')
+              .where('s.status = :status', {
+                status: SubscriptionStatus.ACTIVE,
+              })
+              .andWhere('s.deleted_at IS NULL')
+              .orderBy('s.user_id')
+              .addOrderBy('s.started_at', 'DESC'),
+          'active_sub',
+          'active_sub."userId" = u.id',
+        )
+        .where('u.role = :role', { role: UserRole.USER })
+        .andWhere('u.deleted_at IS NULL')
+        .andWhere('active_sub.plan = :plan', { plan: query.plan });
+
+      if (query.status === UserStatusFilter.ACTIVE)
+        qb.andWhere('u.is_active = true');
+      if (query.status === UserStatusFilter.INACTIVE)
+        qb.andWhere('u.is_active = false');
+      if (query.status === UserStatusFilter.PENDING)
+        qb.andWhere('u.email_verified = false');
+
+      if (query.state) qb.andWhere('us.state = :state', { state: query.state });
+
+      if (query.search) {
+        const t = `%${query.search}%`;
+        qb.andWhere(
+          '(u.first_name ILIKE :t OR u.last_name ILIKE :t OR u.email ILIKE :t)',
+          { t },
+        );
+      }
+
+      const total = await qb.getCount();
+      const payload = await qb
+        .orderBy('u.created_at', 'DESC')
+        .skip((page - 1) * limit)
+        .take(limit)
+        .getMany();
+
+      return {
+        payload,
+        paginationMeta: {
+          total,
+          page,
+          limit,
+          hasNext: page * limit < total,
+          hasPrev: page > 1,
+        },
+      };
+    }
+
+    const where: Where[] = [];
+
+    if (query.search) {
+      const t = query.search;
+      where.push(
+        { ...base, firstName: ILike(`%${t}%`) },
+        { ...base, lastName: ILike(`%${t}%`) },
+        { ...base, email: ILike(`%${t}%`) },
+      );
+    } else {
+      where.push(base);
+    }
+
+    return this.userModelAction.list({
+      filterRecordOptions: where,
+      relations: { settings: true },
+      paginationPayload: {
+        page: query.page ?? 1,
+        limit: query.limit ?? 20,
+      },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async adminGetUser(id: string): Promise<User> {
+    const user = await this.userModelAction.get({
+      identifierOptions: { id, role: UserRole.USER },
+    });
+    if (!user) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    return user;
+  }
+
+  async adminToggleUserStatus(id: string, isActive: boolean): Promise<User> {
+    const user = await this.userModelAction.get({
+      identifierOptions: { id, role: UserRole.USER },
+    });
+    if (!user) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    const updated = await this.userModelAction.update({
+      ...noTransaction(),
+      identifierOptions: { id },
+      updatePayload: { isActive },
+    });
+    if (!updated) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    return updated;
+  }
+
+  // ── Super-admin: admins ──────────────────────────────────────────────────────
+
+  async adminListAdmins(query: QueryAdminUsersDto) {
+    const { ILike, In } = await import('typeorm');
+    type Where = import('typeorm').FindOptionsWhere<User>;
+    const base: Where = {
+      role: query.role ?? In([UserRole.ADMIN, UserRole.SUPER_ADMIN]),
+      ...(query.status && { adminStatus: query.status }),
+    };
+
+    const where: Where[] = [];
+
+    if (query.search) {
+      const t = query.search;
+      where.push(
+        { ...base, firstName: ILike(`%${t}%`) },
+        { ...base, lastName: ILike(`%${t}%`) },
+        { ...base, email: ILike(`%${t}%`) },
+      );
+    } else {
+      where.push(base);
+    }
+
+    return this.userModelAction.list({
+      filterRecordOptions: where,
+      paginationPayload: {
+        page: query.page ?? 1,
+        limit: query.limit ?? 20,
+      },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async adminCreateAdmin(dto: CreateAdminDto): Promise<User> {
+    const existing = await this.userModelAction.findByEmail(dto.email);
+    if (existing) throw new ConflictException(SYS_MSG.CONFLICT);
+
+    return this.userModelAction.create({
+      ...noTransaction(),
+      createPayload: {
+        email: dto.email,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        role: dto.role,
+        adminStatus: AdminStatus.INVITED,
+        isActive: false,
+        emailVerified: false,
+        onboardingStep: 1,
+        onboardingComplete: false,
+      },
+    });
+  }
+
+  async adminUpdateAdminRole(id: string, role: UserRole): Promise<User> {
+    const { In } = await import('typeorm');
+    const admin = await this.userModelAction.get({
+      identifierOptions: {
+        id,
+        role: In([UserRole.ADMIN, UserRole.SUPER_ADMIN]),
+      },
+    });
+    if (!admin) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    const updated = await this.userModelAction.update({
+      ...noTransaction(),
+      identifierOptions: { id },
+      updatePayload: { role },
+    });
+    if (!updated) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    return updated;
+  }
+
+  async adminUpdateAdminStatus(id: string, status: AdminStatus): Promise<User> {
+    const { In } = await import('typeorm');
+    const admin = await this.userModelAction.get({
+      identifierOptions: {
+        id,
+        role: In([UserRole.ADMIN, UserRole.SUPER_ADMIN]),
+      },
+    });
+    if (!admin) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    const updated = await this.userModelAction.update({
+      ...noTransaction(),
+      identifierOptions: { id },
+      updatePayload: { adminStatus: status },
+    });
+    if (!updated) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    return updated;
   }
 }

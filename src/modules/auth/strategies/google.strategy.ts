@@ -6,6 +6,7 @@ import { googleConfig } from '../../../config/google.config';
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { SYS_MSG } from '../../../common/constants/sys-msg';
 import { type Request } from 'express';
+import { UsersService } from '../../users/users.service';
 
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
@@ -13,6 +14,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     @Inject(googleConfig.KEY)
     googleCfg: ConfigType<typeof googleConfig>,
     private readonly authService: AuthService,
+    private readonly usersService: UsersService,
   ) {
     super({
       clientID: googleCfg.googleClientId,
@@ -49,6 +51,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       lastName,
       googleId: profile.id,
     });
+    await this.usersService.createFreeSubscription(authResponse.user.id);
     done(null, authResponse);
   }
 }

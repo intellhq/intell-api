@@ -6,6 +6,7 @@ on:
       - "CI Quality & Security Gate"
     types: [completed]
     branches: [main]
+  workflow_dispatch:
 permissions:
   contents: read
 
@@ -23,6 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     if: |
+      github.event_name == 'workflow_dispatch' ||
       (
         github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.event == 'push' &&
@@ -69,7 +71,7 @@ jobs:
       - name: Copy Archive to Server
         uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345
         with:
-          host: ${{ secrets.PROD_SERVER_IP }}
+          host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           source: "${{ steps.archive.outputs.filename }}"
@@ -86,7 +88,16 @@ jobs:
           envs: ARCHIVE
           script: |
             set -euo pipefail
+
+            # Load node/pnpm/pm2 from nvm
+            export NVM_DIR="$HOME/.nvm"
+            set +u
+            . "$NVM_DIR/nvm.sh"
+            nvm use 24 >/dev/null
+            set -u
+
             APP_DIR=/opt/backend/prod
+
             DEPLOY_DIR="$APP_DIR/releases/${ARCHIVE%.tar.gz}"
             mkdir -p "$DEPLOY_DIR"
             tar -xzf /tmp/"${ARCHIVE}" -C "${DEPLOY_DIR}"
@@ -118,16 +129,20 @@ jobs:
             cat > "$APP_DIR/ecosystem.config.js" <<EOF
             module.exports = {
               apps: [{
+
                 name: 'intell',
                 script: "$APP_DIR/current/dist/main.js",
                 cwd: "$APP_DIR/current",
+
               }]
             }
             EOF
 
             # pm2 reload does not pick up a changed script/cwd, even with
             # --update-env, so the process must be fully replaced
+
             pm2 delete intell 2>/dev/null || true
+
             pm2 start "$APP_DIR/ecosystem.config.js"
             pm2 save
 
@@ -175,6 +190,7 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           script: |
             set -e
+
             APP_DIR=/opt/backend/prod
 
             # Revert exactly the migrations this deploy applied
@@ -194,5 +210,6 @@ jobs:
             ln -sfn "$PREV" "$APP_DIR/current"
 
             pm2 delete intell 2>/dev/null || true
+
             pm2 start "$APP_DIR/ecosystem.config.js"
             pm2 save

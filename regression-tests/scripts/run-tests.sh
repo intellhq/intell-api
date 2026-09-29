@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "Running EnergyIQ QA Regression Suite..."
+echo "Running Intell QA Regression Suite..."
 
 npm test
 

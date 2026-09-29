@@ -1,6 +1,6 @@
 @echo off
 echo ============================================
-echo   EnergyIQ QA Regression Suite Runner
+echo   Intell QA Regression Suite Runner
 echo ============================================
 echo.
 

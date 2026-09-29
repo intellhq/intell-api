@@ -1,4 +1,5 @@
 import {
+  ForbiddenException,
   Inject,
   Injectable,
   Logger,
@@ -28,6 +29,7 @@ import { Message } from './entities/message.entity';
 import { AgentService } from './agent.service';
 import { SYSTEM_SENDER_ID } from './helpers/constants';
 import { GatewayResponseDTO } from './dto/gateway-response.dto';
+import { noTransaction } from '../../common/constants/transaction-options';
 
 @Injectable()
 export class ChatService {
@@ -60,7 +62,7 @@ export class ChatService {
     // Generate the title from the starting message before creating the chat
     // so it's included in the response object right away.
     const title =
-      (await this.llmService.generateChatTitle(dto.startingMessage)) ??
+      (await this.llmService.generateChatTitle(dto.startingMessage, userId)) ??
       'New Chat';
 
     const chatPayload: Partial<Chat> = {
@@ -104,8 +106,22 @@ export class ChatService {
     return this.messageModelAction.findByChatId(chat.id);
   }
 
-  getSingleChat(chatId: string) {
-    return this.chatModelAction.findById(chatId);
+  async getSingleChat(chatId: string, userId: string) {
+    const chat = await this.chatModelAction.findById(chatId);
+    if (!chat) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    if (chat.userId !== userId) throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+
+    return chat;
+  }
+
+  async deleteSingleChat(chatId: string, userId: string) {
+    const chat = await this.chatModelAction.findById(chatId);
+    if (!chat) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    if (chat.userId !== userId) throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+    return await this.chatModelAction.delete({
+      ...noTransaction(),
+      identifierOptions: { id: chatId },
+    });
   }
 
   getSuggestedChatQuestions() {}
@@ -200,6 +216,7 @@ export class ChatService {
         dto.senderId,
         onToken,
         userPreferredLanguage ? userPreferredLanguage : undefined,
+        dto.chatId,
       );
 
       // 6. Save the complete bot message to DB
@@ -224,7 +241,9 @@ export class ChatService {
               .generateCards(
                 dto.textContent,
                 fullContent,
+                dto.senderId,
                 userPreferredLanguage ?? undefined,
+                dto.chatId,
               )
               .then((cardResponse) => {
                 if (cardResponse) {
@@ -320,6 +339,7 @@ export class ChatService {
         messagesInContext,
         dto.senderId,
         userPreferredLanguage ? userPreferredLanguage : undefined,
+        dto.chatId,
       );
       botMessageContent = result as string;
     } catch (err) {
