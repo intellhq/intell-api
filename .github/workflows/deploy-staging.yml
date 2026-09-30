@@ -88,7 +88,16 @@ jobs:
           envs: ARCHIVE
           script: |
             set -euo pipefail
-            APP_DIR=/home/${{ secrets.SSH_USER }}/backend/staging
+
+            # Load node/pnpm/pm2 from nvm
+            export NVM_DIR="$HOME/.nvm"
+            set +u
+            . "$NVM_DIR/nvm.sh"
+            nvm use 24 >/dev/null
+            set -u
+
+            APP_DIR=/opt/backend/staging
+
             DEPLOY_DIR="$APP_DIR/releases/${ARCHIVE%.tar.gz}"
             mkdir -p "$DEPLOY_DIR"
             tar -xzf /tmp/"${ARCHIVE}" -C "${DEPLOY_DIR}"
@@ -121,8 +130,8 @@ jobs:
             module.exports = {
               apps: [{
                 name: 'be-staging',
-                script: '$APP_DIR/current/dist/main.js',
-                cwd: '$APP_DIR/current',
+                script: "$APP_DIR/current/dist/main.js",
+                cwd: "$APP_DIR/current",
               }]
             }
             EOF
@@ -150,13 +159,13 @@ jobs:
             STATUS_CODE=$(echo "$RESPONSE" | tail -n 1)
             BODY=$(echo "$RESPONSE" | head -n -1)
             if [ "$STATUS_CODE" -ne 200 ]; then
-              echo "Attempt $i/5 — HTTP $STATUS_CODE"
+              echo "Attempt $i/5 - HTTP $STATUS_CODE"
               echo "$BODY"
               sleep 15
               continue
             fi
             if [ "$(echo "$BODY" | jq -r '.data.status')" != 'ok' ]; then
-              echo "Attempt $i/5 — app unhealthy"
+              echo "Attempt $i/5 - app unhealthy"
               echo "$BODY"
               sleep 10
               continue
@@ -177,7 +186,8 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           script: |
             set -e
-            APP_DIR=/home/${{ secrets.SSH_USER }}/backend/staging
+
+            APP_DIR=/opt/backend/staging
 
             # Revert exactly the migrations this deploy applied
             APPLIED=$(cat "$APP_DIR/.migrations_applied" 2>/dev/null || echo 0)
