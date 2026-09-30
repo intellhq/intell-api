@@ -36,7 +36,7 @@ import { UsersChartQueryDto } from './dto/users-chart-query.dto';
 @ApiTags('Super Admin')
 @ApiBearerAuth()
 @Controller({ path: 'super-admin', version: '1' })
-@Roles(UserRole.SUPER_ADMIN)
+@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
 @UseGuards(RolesGuard)
 export class SuperAdminController {
   constructor(private readonly superAdminService: SuperAdminService) {}
