@@ -587,8 +587,14 @@ export class UsersService {
 
   async getUserSettings(userId: string): Promise<UserSettings> {
     const settings = await this.userSettingsModelAction.findByUserId(userId);
-    if (!settings) throw new NotFoundException(SYS_MSG.NOT_FOUND);
-    return settings;
+    if (settings) return settings;
+
+    const user = await this.findOne(userId);
+
+    return this.userSettingsModelAction.create({
+      ...noTransaction(),
+      createPayload: { user },
+    });
   }
 
   private isValidGeneratorType(t: unknown): t is GeneratorFuelType {
