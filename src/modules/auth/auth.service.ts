@@ -84,6 +84,7 @@ export class AuthService {
       password: dto.password,
       firstName: dto.firstName,
       lastName: dto.lastName,
+      role: dto.role,
     });
 
     await this.sendVerificationEmail(user);
